@@ -1,4 +1,4 @@
-name: Spider man across the spider verse
+name: Spider man home coming upload
 on:
   workflow_dispatch:
 jobs:
