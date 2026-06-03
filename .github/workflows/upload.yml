@@ -9,12 +9,13 @@ jobs:
     steps:
       - name: Free up disk space
         run: |
-          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+          sudo docker image prune --all --force
           df -h
 
       - name: Install gdown and rclone
         run: |
-          pip install --upgrade "gdown>=5.0.0"
+          pip install --upgrade "gdown==5.2.0"
           curl https://rclone.org/install.sh | sudo bash
 
       - name: Write rclone config
@@ -38,8 +39,62 @@ jobs:
       - name: Download from Drive
         run: |
           mkdir -p drive_data
-          gdown --folder "https://drive.google.com/drive/folders/1rM_wiU6k3TbIDvrp3kt72-4BFWO4GC7G" -O drive_data 
+          python3 <<'PYEOF'
+          import os
+          import gdown
+          from gdown.download_folder import _parse_google_drive_file
+          import requests
+
+          folder_url = "https://drive.google.com/drive/folders/1rM_wiU6k3TbIDvrp3kt72-4BFWO4GC7G"
+          output_root = "drive_data"
+
+          sess = requests.session()
+          return_code, gdrive_file = _parse_google_drive_file(
+              url=folder_url,
+              quiet=False,
+              use_cookies=True,
+              sess=sess,
+          )
+
+          failed = []
+
+          def walk(node, path):
+              if node.children:
+                  subpath = os.path.join(path, node.name)
+                  os.makedirs(subpath, exist_ok=True)
+                  for child in node.children:
+                      walk(child, subpath)
+              else:
+                  dest = os.path.join(path, node.name)
+                  if os.path.exists(dest) and os.path.getsize(dest) > 0:
+                      print(f"SKIP (exists): {dest}")
+                      return
+                  try:
+                      gdown.download(id=node.id, output=dest, quiet=False, resume=True)
+                  except Exception as e:
+                      print(f"FAILED: {node.name} ({node.id}) - {e}")
+                      failed.append((node.name, node.id))
+
+          walk(gdrive_file, output_root)
+
+          print("\n===== SUMMARY =====")
+          print(f"Failed files: {len(failed)}")
+          for name, fid in failed:
+              print(f"  - {name} ({fid})")
+
+          with open("failed_files.txt", "w") as f:
+              for name, fid in failed:
+                  f.write(f"{name}\t{fid}\n")
+          PYEOF
           du -sh drive_data
+
+      - name: Upload failure log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: failed-files
+          path: failed_files.txt
+          if-no-files-found: ignore
 
       - name: Upload to R2
         run: |
