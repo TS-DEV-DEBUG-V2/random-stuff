@@ -41,7 +41,7 @@ jobs:
 
       - name: Copy file
         run: |
-              rclone copy "gdrive:" "r2:nostaligafun-files/games/games-accualy/APPS/MovieApp_Data/files/movies/spider-man-into-the-spider-verse.mp4" \
+              rclone copyto "gdrive:" "r2:nostaligafun-files/games/games-accualy/APPS/MovieApp_Data/files/movies/spider-man-into-the-spider-verse.mp4" \
                   --drive-root-folder-id "1V3Bq0lrDQUxJay5DDs3gK69ZvRNb1j2u" \
                   --transfers 4 \
                   --progress \
