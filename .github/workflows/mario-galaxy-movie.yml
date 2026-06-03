@@ -1,0 +1,84 @@
+name: upload galaxy mario movie
+on:
+  workflow_dispatch:
+jobs:
+  copy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+    steps:
+      - name: Install rclone
+        run: curl https://rclone.org/install.sh | sudo bash
+      - name: Install ffmpeg
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg
+      - name: Write rclone config
+        env:
+          GDRIVE_SECRET: ${{ secrets.GDRIVE_SECRET }}
+          R2_ACCESS_KEY: ${{ secrets.R2_ACCESS_KEY }}
+          R2_SECRET_KEY: ${{ secrets.R2_SECRET_KEY }}
+          R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
+        run: |
+          mkdir -p ~/.config/rclone
+          cat > ~/.config/rclone/rclone.conf <<EOF
+          [gdrive]
+          type = drive
+          scope = drive.readonly
+          token = ${GDRIVE_SECRET}
+          [r2]
+          type = s3
+          provider = Cloudflare
+          access_key_id = ${R2_ACCESS_KEY}
+          secret_access_key = ${R2_SECRET_KEY}
+          endpoint = ${R2_ENDPOINT}
+          acl = private
+          EOF
+          chmod 600 ~/.config/rclone/rclone.conf
+      - name: Refresh token
+        run: "rclone about gdrive:"
+      - name: Download file via Drive API
+        env:
+          FILE_ID: 14v5G1i88QriR2cKV-n1OiLFCo849jpaV
+          OUTPUT: the-super-mario-galaxy-movie.avi
+        run: |
+          ACCESS_TOKEN=$(python3 -c "
+          import json, configparser, os
+          c = configparser.ConfigParser()
+          c.read(os.path.expanduser('~/.config/rclone/rclone.conf'))
+          print(json.loads(c['gdrive']['token'])['access_token'])
+          ")
+          curl -L --fail --progress-bar \
+            -H "Authorization: Bearer $ACCESS_TOKEN" \
+            "https://www.googleapis.com/drive/v3/files/${FILE_ID}?alt=media" \
+            -o "$OUTPUT"
+          ls -lh "$OUTPUT"
+      - name: Convert and pick smaller
+        run: |
+          SRC=the-super-mario-galaxy-movie.avi
+          ffmpeg -hide_banner -y -i "$SRC" \
+            -c:v libx264 -preset medium -crf 20 -pix_fmt yuv420p \
+            -c:a aac -b:a 160k -movflags +faststart \
+            the-super-mario-galaxy-movie.mp4
+          ffmpeg -hide_banner -y -i "$SRC" \
+            -c:v libvpx-vp9 -crf 31 -b:v 0 -row-mt 1 -tile-columns 2 -threads 4 -deadline good -cpu-used 2 \
+            -c:a libopus -b:a 128k \
+            the-super-mario-galaxy-movie.webm
+          ls -lh "$SRC" the-super-mario-galaxy-movie.mp4 the-super-mario-galaxy-movie.webm
+          MP4_SIZE=$(stat -c%s the-super-mario-galaxy-movie.mp4)
+          WEBM_SIZE=$(stat -c%s the-super-mario-galaxy-movie.webm)
+          if [ "$WEBM_SIZE" -lt "$MP4_SIZE" ]; then
+            echo "UPLOAD_FILE=the-super-mario-galaxy-movie.webm" >> $GITHUB_ENV
+            echo "UPLOAD_EXT=webm" >> $GITHUB_ENV
+            echo "UPLOAD_MIME=video/webm" >> $GITHUB_ENV
+          else
+            echo "UPLOAD_FILE=the-super-mario-galaxy-movie.mp4" >> $GITHUB_ENV
+            echo "UPLOAD_EXT=mp4" >> $GITHUB_ENV
+            echo "UPLOAD_MIME=video/mp4" >> $GITHUB_ENV
+          fi
+      - name: Upload to R2
+        run: |
+          rclone copyto "$UPLOAD_FILE" "r2:nostaligafun-files/games/games-accualy/APPS/MovieApp_Data/files/movies/the-super-mario-galaxy-movie.${UPLOAD_EXT}" \
+            --s3-no-check-bucket \
+            --header-upload "Content-Type: ${UPLOAD_MIME}" \
+            --progress \
+            --stats 30s \
+            --retries 999 \
+            --low-level-retries 999
