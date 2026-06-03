@@ -1,0 +1,54 @@
+name: Drive to R2
+on:
+  workflow_dispatch:
+
+jobs:
+  copy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+    steps:
+      - name: Free up disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc
+          df -h
+
+      - name: Install gdown and rclone
+        run: |
+          pip install --upgrade gdown
+          curl https://rclone.org/install.sh | sudo bash
+
+      - name: Write rclone config
+        env:
+          R2_ACCESS_KEY: ${{ secrets.R2_ACCESS_KEY }}
+          R2_SECRET_KEY: ${{ secrets.R2_SECRET_KEY }}
+          R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
+        run: |
+          mkdir -p ~/.config/rclone
+          cat > ~/.config/rclone/rclone.conf <<EOF
+          [r2]
+          type = s3
+          provider = Cloudflare
+          access_key_id = ${R2_ACCESS_KEY}
+          secret_access_key = ${R2_SECRET_KEY}
+          endpoint = ${R2_ENDPOINT}
+          acl = private
+          EOF
+          chmod 600 ~/.config/rclone/rclone.conf
+
+      - name: Download from Drive
+        run: |
+          mkdir -p drive_data
+          gdown --folder "https://drive.google.com/drive/folders/1rM_wiU6k3TbIDvrp3kt72-4BFWO4GC7G" -O drive_data --remaining-ok
+          du -sh drive_data
+
+      - name: Upload to R2
+        run: |
+          rclone copy drive_data "r2:nostaligafun-files/games/games-accualy/APPS/MovieApp_Data/files/sonicx" \
+            --transfers 16 \
+            --checkers 16 \
+            --fast-list \
+            --progress \
+            --stats 30s \
+            --retries 999 \
+            --low-level-retries 999 \
+            --s3-no-check-bucket
