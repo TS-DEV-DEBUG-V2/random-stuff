@@ -33,25 +33,29 @@ jobs:
           EOF
           chmod 600 ~/.config/rclone/rclone.conf
       - name: Refresh token
-        run: "rclone about gdrive:"
+        run: |
+          set -e
+          rclone about gdrive:
       - name: Download file via Drive API
         env:
           FILE_ID: 14v5G1i88QriR2cKV-n1OiLFCo849jpaV
           OUTPUT: the-super-mario-galaxy-movie.avi
         run: |
+          set -e
           ACCESS_TOKEN=$(python3 -c "
           import json, configparser, os
           c = configparser.ConfigParser()
           c.read(os.path.expanduser('~/.config/rclone/rclone.conf'))
           print(json.loads(c['gdrive']['token'])['access_token'])
           ")
-          curl -L --fail --progress-bar \
+          curl -L --fail-with-body --progress-bar \
             -H "Authorization: Bearer $ACCESS_TOKEN" \
-            "https://www.googleapis.com/drive/v3/files/${FILE_ID}?alt=media" \
+            "https://www.googleapis.com/drive/v3/files/${FILE_ID}?alt=media&acknowledgeAbuse=true&supportsAllDrives=true" \
             -o "$OUTPUT"
           ls -lh "$OUTPUT"
       - name: Convert and pick smaller
         run: |
+          set -e
           SRC=the-super-mario-galaxy-movie.avi
           ffmpeg -hide_banner -y -i "$SRC" \
             -c:v libx264 -preset medium -crf 20 -pix_fmt yuv420p \
