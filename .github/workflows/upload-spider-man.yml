@@ -34,7 +34,7 @@ jobs:
           chmod 600 ~/.config/rclone/rclone.conf
 
       - name: Refresh token
-        run: rclone about gdrive:
+        run: "rclone about gdrive:"
 
       - name: Download file via Drive API
         env:
