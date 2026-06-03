@@ -42,51 +42,47 @@ jobs:
           python3 <<'PYEOF'
           import os
           import gdown
-          from gdown.download_folder import _parse_google_drive_file
-          import requests
+          import gdown.download_folder as df
 
           folder_url = "https://drive.google.com/drive/folders/1rM_wiU6k3TbIDvrp3kt72-4BFWO4GC7G"
           output_root = "drive_data"
 
-          sess = requests.session()
-          return_code, gdrive_file = _parse_google_drive_file(
+          failed = []
+          _orig_download = df.download
+
+          def patched_download(*args, **kwargs):
+              output = kwargs.get("output", "unknown")
+              url = kwargs.get("url", args[0] if args else "")
+              try:
+                  result = _orig_download(*args, **kwargs)
+                  if result is None:
+                      raise RuntimeError("download returned None (likely quota or permission)")
+                  return result
+              except Exception as e:
+                  print(f"\n=== FAILED: {output} ===\n{e}\n", flush=True)
+                  failed.append((output, url, str(e)))
+                  return output
+
+          df.download = patched_download
+
+          df.download_folder(
               url=folder_url,
+              output=output_root,
+              remaining_ok=True,
+              resume=True,
               quiet=False,
-              use_cookies=True,
-              sess=sess,
           )
 
-          failed = []
-
-          def walk(node, path):
-              if node.children:
-                  subpath = os.path.join(path, node.name)
-                  os.makedirs(subpath, exist_ok=True)
-                  for child in node.children:
-                      walk(child, subpath)
-              else:
-                  dest = os.path.join(path, node.name)
-                  if os.path.exists(dest) and os.path.getsize(dest) > 0:
-                      print(f"SKIP (exists): {dest}")
-                      return
-                  try:
-                      gdown.download(id=node.id, output=dest, quiet=False, resume=True)
-                  except Exception as e:
-                      print(f"FAILED: {node.name} ({node.id}) - {e}")
-                      failed.append((node.name, node.id))
-
-          walk(gdrive_file, output_root)
-
-          print("\n===== SUMMARY =====")
-          print(f"Failed files: {len(failed)}")
-          for name, fid in failed:
-              print(f"  - {name} ({fid})")
-
           with open("failed_files.txt", "w") as f:
-              for name, fid in failed:
-                  f.write(f"{name}\t{fid}\n")
+              for output, url, err in failed:
+                  f.write(f"{output}\t{url}\t{err}\n")
+
+          print(f"\n===== SUMMARY =====")
+          print(f"Failed files: {len(failed)}")
+          for output, url, _ in failed:
+              print(f"  - {output} ({url})")
           PYEOF
-          du -sh drive_data
+          du -sh drive_data || true
 
       - name: Upload failure log
         if: always()
