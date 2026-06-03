@@ -14,7 +14,7 @@ jobs:
 
       - name: Install gdown and rclone
         run: |
-          pip install --upgrade gdown
+          pip install --upgrade "gdown>=5.0.0"
           curl https://rclone.org/install.sh | sudo bash
 
       - name: Write rclone config
