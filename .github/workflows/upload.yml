@@ -38,7 +38,7 @@ jobs:
       - name: Download from Drive
         run: |
           mkdir -p drive_data
-          gdown --folder "https://drive.google.com/drive/folders/1rM_wiU6k3TbIDvrp3kt72-4BFWO4GC7G" -O drive_data --remaining-ok
+          gdown --folder "https://drive.google.com/drive/folders/1rM_wiU6k3TbIDvrp3kt72-4BFWO4GC7G" -O drive_data 
           du -sh drive_data
 
       - name: Upload to R2
