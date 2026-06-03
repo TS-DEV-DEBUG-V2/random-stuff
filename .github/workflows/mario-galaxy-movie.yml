@@ -48,10 +48,19 @@ jobs:
           c.read(os.path.expanduser('~/.config/rclone/rclone.conf'))
           print(json.loads(c['gdrive']['token'])['access_token'])
           ")
-          curl -L --fail-with-body --progress-bar \
+          echo "token length: ${#ACCESS_TOKEN}"
+          HTTP=$(curl -L -s -o "$OUTPUT" -w "%{http_code}" \
             -H "Authorization: Bearer $ACCESS_TOKEN" \
-            "https://www.googleapis.com/drive/v3/files/${FILE_ID}?alt=media&acknowledgeAbuse=true&supportsAllDrives=true" \
-            -o "$OUTPUT"
+            "https://www.googleapis.com/drive/v3/files/${FILE_ID}?alt=media&acknowledgeAbuse=true&supportsAllDrives=true")
+          SIZE=$(stat -c%s "$OUTPUT")
+          echo "HTTP $HTTP, $SIZE bytes"
+          if [ "$HTTP" != "200" ]; then
+            echo "--- response body ---"
+            cat "$OUTPUT"
+            echo
+            exit 1
+          fi
+          file "$OUTPUT"
           ls -lh "$OUTPUT"
       - name: Convert and pick smaller
         run: |
