@@ -36,31 +36,19 @@ jobs:
         run: |
           set -e
           rclone about gdrive:
-      - name: Download file via Drive API
+      - name: Download file from Drive
         env:
           FILE_ID: 14v5G1i88QriR2cKV-n1OiLFCo849jpaV
           OUTPUT: the-super-mario-galaxy-movie.avi
         run: |
           set -e
-          ACCESS_TOKEN=$(python3 -c "
-          import json, configparser, os
-          c = configparser.ConfigParser()
-          c.read(os.path.expanduser('~/.config/rclone/rclone.conf'))
-          print(json.loads(c['gdrive']['token'])['access_token'])
-          ")
-          echo "token length: ${#ACCESS_TOKEN}"
-          HTTP=$(curl -L -s -o "$OUTPUT" -w "%{http_code}" \
-            -H "Authorization: Bearer $ACCESS_TOKEN" \
-            "https://www.googleapis.com/drive/v3/files/${FILE_ID}?alt=media&acknowledgeAbuse=true&supportsAllDrives=true")
-          SIZE=$(stat -c%s "$OUTPUT")
-          echo "HTTP $HTTP, $SIZE bytes"
-          if [ "$HTTP" != "200" ]; then
-            echo "--- response body ---"
-            cat "$OUTPUT"
-            echo
-            exit 1
-          fi
-          file "$OUTPUT"
+          rclone copyto --drive-acknowledge-abuse \
+            --retries 20 --retries-sleep 30s \
+            --low-level-retries 50 \
+            --tpslimit 5 --tpslimit-burst 1 \
+            --drive-pacer-min-sleep 200ms \
+            --progress --stats 30s \
+            "gdrive:{${FILE_ID}}" "$OUTPUT"
           ls -lh "$OUTPUT"
       - name: Convert and pick smaller
         run: |
