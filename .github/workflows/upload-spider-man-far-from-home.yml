@@ -57,7 +57,7 @@ jobs:
 
       - name: Upload to R2
         run: |
-          rclone copyto "spider-man-across-the-spider-verse.mp4" "r2:nostaligafun-files/games/games-accualy/APPS/MovieApp_Data/files/movies/spider-man-far-from-home.ts" \
+          rclone copyto "spider-man-far-from-home.ts" "r2:nostaligafun-files/games/games-accualy/APPS/MovieApp_Data/files/movies/spider-man-far-from-home.ts" \
             --s3-no-check-bucket \
             --progress \
             --stats 30s \
