@@ -1,0 +1,151 @@
+name: mario movie upload
+on:
+  workflow_dispatch:
+jobs:
+  copy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+    env:
+      MAGNET: "magnet:?xt=urn:btih:F6B3C3FDFEA8681025691546589DA974B3F16609&dn=The%20Super%20Mario%20Bros.%20Movie%20(2023)%20%5B720p%5D%20%5BWEBRip%5D&tr=udp%3A%2F%2Ftracker.opentrackr.org%3A1337&tr=udp%3A%2F%2Fopen.stealth.si%3A80%2Fannounce&tr=udp%3A%2F%2Ftracker.torrent.eu.org%3A451%2Fannounce&tr=udp%3A%2F%2Ftracker.bittor.pw%3A1337%2Fannounce&tr=udp%3A%2F%2Fpublic.popcorn-tracker.org%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.dler.org%3A6969%2Fannounce&tr=udp%3A%2F%2Fexodus.desync.com%3A6969&tr=udp%3A%2F%2Fopen.demonii.com%3A1337%2Fannounce&tr=udp%3A%2F%2Fglotorrents.pw%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.coppersurfer.tk%3A6969&tr=udp%3A%2F%2Ftorrent.gresille.org%3A80%2Fannounce&tr=udp%3A%2F%2Fp4p.arenabg.com%3A1337&tr=udp%3A%2F%2Ftracker.internetwarriors.net%3A1337"
+      SOURCE_FILENAME: "The.Super.Mario.Bros..Movie.2023.720p.WEBRip.x264.AAC-[YTS.MX].mp4"
+      OUTPUT_FILENAME: "the-super-mario-bros-movie.mp4"
+      R2_PATH: "nostaligafun-files/games/games-accualy/APPS/MovieApp_Data/files/movies"
+    steps:
+      - name: Install rclone and qbittorrent-nox
+        run: |
+          curl https://rclone.org/install.sh | sudo bash
+          sudo apt-get update
+          sudo apt-get install -y qbittorrent-nox jq
+      - name: Write rclone config
+        env:
+          R2_ACCESS_KEY: ${{ secrets.R2_ACCESS_KEY }}
+          R2_SECRET_KEY: ${{ secrets.R2_SECRET_KEY }}
+          R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
+        run: |
+          mkdir -p ~/.config/rclone
+          cat > ~/.config/rclone/rclone.conf <<EOF
+          [r2]
+          type = s3
+          provider = Cloudflare
+          access_key_id = ${R2_ACCESS_KEY}
+          secret_access_key = ${R2_SECRET_KEY}
+          endpoint = ${R2_ENDPOINT}
+          acl = private
+          EOF
+          chmod 600 ~/.config/rclone/rclone.conf
+      - name: Configure and start qbittorrent-nox
+        run: |
+          mkdir -p ~/.config/qBittorrent ~/downloads
+          cat > ~/.config/qBittorrent/qBittorrent.conf <<EOF
+          [LegalNotice]
+          Accepted=true
+
+          [Preferences]
+          WebUI\Port=8080
+          WebUI\Username=admin
+          WebUI\Password_PBKDF2="@ByteArray(ARQ77eY1NUZaQsuDHbIMCA==:0WMRkYTUWVT9wVvdDtHAjU9b3b7uB8NR1Gur2hmQCvCDpm39Q+PsJRJPaCU51dEiz+dTzh8qbPsL8WkFljQYFQ==)"
+          WebUI\LocalHostAuth=false
+          WebUI\CSRFProtection=false
+          Downloads\SavePath=$HOME/downloads/
+          Connection\PortRangeMin=6881
+          BitTorrent\Session\MaxConnections=500
+          BitTorrent\Session\MaxConnectionsPerTorrent=200
+          BitTorrent\Session\MaxUploads=20
+          BitTorrent\Session\GlobalDLSpeedLimit=0
+          BitTorrent\Session\GlobalUPSpeedLimit=0
+          BitTorrent\Session\AsyncIOThreadsCount=8
+          BitTorrent\Session\DHTEnabled=true
+          BitTorrent\Session\PeXEnabled=true
+          BitTorrent\Session\LSDEnabled=true
+          BitTorrent\Session\Encryption=0
+          EOF
+          qbittorrent-nox --daemon
+          sleep 5
+      - name: Add magnet and select file
+        run: |
+          curl -s -c cookies.txt -X POST "http://localhost:8080/api/v2/auth/login" \
+            --data "username=admin&password=adminadmin" > /dev/null
+
+          curl -s -b cookies.txt -X POST "http://localhost:8080/api/v2/torrents/add" \
+            --form "urls=$MAGNET" \
+            --form "savepath=$HOME/downloads" \
+            --form "paused=true" > /dev/null
+
+          echo "Waiting for metadata..."
+          HASH=""
+          FILES=""
+          for i in {1..60}; do
+            HASH=$(curl -s -b cookies.txt "http://localhost:8080/api/v2/torrents/info" | jq -r '.[0].hash // empty')
+            if [ -n "$HASH" ]; then
+              FILES=$(curl -s -b cookies.txt "http://localhost:8080/api/v2/torrents/files?hash=$HASH")
+              COUNT=$(echo "$FILES" | jq 'length')
+              if [ "$COUNT" -gt 0 ]; then
+                echo "Got metadata: $COUNT file(s)"
+                break
+              fi
+            fi
+            sleep 2
+          done
+
+          if [ -z "$HASH" ]; then
+            echo "Failed to fetch torrent metadata"
+            exit 1
+          fi
+
+          echo "Files in torrent:"
+          echo "$FILES" | jq -r '.[] | "\(.index)\t\(.name)"'
+
+          KEEP_IDX=$(echo "$FILES" | jq -r --arg name "$SOURCE_FILENAME" '.[] | select(.name | endswith($name)) | .index' | head -n1)
+          if [ -z "$KEEP_IDX" ]; then
+            echo "Could not find $SOURCE_FILENAME in torrent"
+            exit 1
+          fi
+          echo "Keeping file index: $KEEP_IDX"
+
+          SKIP_IDXS=$(echo "$FILES" | jq -r --argjson keep "$KEEP_IDX" '.[] | select(.index != $keep) | .index' | paste -sd '|')
+          if [ -n "$SKIP_IDXS" ]; then
+            curl -s -b cookies.txt -X POST "http://localhost:8080/api/v2/torrents/filePrio" \
+              --data "hash=$HASH&id=$SKIP_IDXS&priority=0" > /dev/null
+          fi
+          curl -s -b cookies.txt -X POST "http://localhost:8080/api/v2/torrents/filePrio" \
+            --data "hash=$HASH&id=$KEEP_IDX&priority=7" > /dev/null
+
+          curl -s -b cookies.txt -X POST "http://localhost:8080/api/v2/torrents/resume" \
+            --data "hashes=$HASH" > /dev/null
+
+          echo "$HASH" > /tmp/torrent_hash
+      - name: Wait for download
+        run: |
+          HASH=$(cat /tmp/torrent_hash)
+          while true; do
+            INFO=$(curl -s -b cookies.txt "http://localhost:8080/api/v2/torrents/info?hashes=$HASH" | jq '.[0]')
+            STATE=$(echo "$INFO" | jq -r '.state')
+            PROGRESS=$(echo "$INFO" | jq -r '.progress')
+            DLSPEED=$(echo "$INFO" | jq -r '.dlspeed')
+            NUM_SEEDS=$(echo "$INFO" | jq -r '.num_seeds')
+            PCT=$(awk "BEGIN {printf \"%.2f\", $PROGRESS * 100}")
+            SPEED_MB=$(awk "BEGIN {printf \"%.2f\", $DLSPEED / 1048576}")
+            echo "state=$STATE progress=${PCT}% speed=${SPEED_MB}MB/s seeds=$NUM_SEEDS"
+            case "$STATE" in
+              uploading|stalledUP|pausedUP|queuedUP|forcedUP|checkingUP)
+                echo "Download complete"
+                break
+                ;;
+            esac
+            sleep 15
+          done
+      - name: Upload to R2
+        run: |
+          SRC=$(find "$HOME/downloads" -type f -name "$SOURCE_FILENAME" | head -n1)
+          if [ -z "$SRC" ]; then
+            echo "Source file not found"
+            find "$HOME/downloads" -type f
+            exit 1
+          fi
+          ls -lh "$SRC"
+          rclone copyto "$SRC" "r2:${R2_PATH}/${OUTPUT_FILENAME}" \
+            --s3-no-check-bucket \
+            --progress \
+            --stats 30s \
+            --retries 999 \
+            --low-level-retries 999
