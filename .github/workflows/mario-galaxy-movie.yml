@@ -48,30 +48,27 @@ jobs:
             "https://drive.google.com/file/d/${FILE_ID}/view"
           file "$OUTPUT"
           ls -lh "$OUTPUT"
-      - name: Convert and pick smaller
+      - name: Convert to mp4
         run: |
           set -e
           SRC=the-super-mario-galaxy-movie.avi
-          ffmpeg -hide_banner -y -i "$SRC" \
-            -c:v libx264 -preset medium -crf 20 -pix_fmt yuv420p \
-            -c:a aac -b:a 160k -movflags +faststart \
-            the-super-mario-galaxy-movie.mp4
-          ffmpeg -hide_banner -y -i "$SRC" \
-            -c:v libvpx-vp9 -crf 31 -b:v 0 -row-mt 1 -tile-columns 2 -threads 4 -deadline good -cpu-used 2 \
-            -c:a libopus -b:a 128k \
-            the-super-mario-galaxy-movie.webm
-          ls -lh "$SRC" the-super-mario-galaxy-movie.mp4 the-super-mario-galaxy-movie.webm
-          MP4_SIZE=$(stat -c%s the-super-mario-galaxy-movie.mp4)
-          WEBM_SIZE=$(stat -c%s the-super-mario-galaxy-movie.webm)
-          if [ "$WEBM_SIZE" -lt "$MP4_SIZE" ]; then
-            echo "UPLOAD_FILE=the-super-mario-galaxy-movie.webm" >> $GITHUB_ENV
-            echo "UPLOAD_EXT=webm" >> $GITHUB_ENV
-            echo "UPLOAD_MIME=video/webm" >> $GITHUB_ENV
-          else
-            echo "UPLOAD_FILE=the-super-mario-galaxy-movie.mp4" >> $GITHUB_ENV
-            echo "UPLOAD_EXT=mp4" >> $GITHUB_ENV
-            echo "UPLOAD_MIME=video/mp4" >> $GITHUB_ENV
+          OUT=the-super-mario-galaxy-movie.mp4
+          if ffmpeg -hide_banner -y -i "$SRC" -c copy -movflags +faststart "$OUT" 2>&1 | tee /tmp/copy.log; then
+            if ! ffprobe -v error -i "$OUT" >/dev/null 2>&1; then
+              echo "stream copy produced bad file, re-encoding"
+              rm -f "$OUT"
+            fi
           fi
+          if [ ! -f "$OUT" ]; then
+            ffmpeg -hide_banner -y -i "$SRC" \
+              -c:v libx264 -preset ultrafast -crf 18 -pix_fmt yuv420p \
+              -c:a aac -b:a 192k -movflags +faststart \
+              "$OUT"
+          fi
+          ls -lh "$SRC" "$OUT"
+          echo "UPLOAD_FILE=$OUT" >> $GITHUB_ENV
+          echo "UPLOAD_EXT=mp4" >> $GITHUB_ENV
+          echo "UPLOAD_MIME=video/mp4" >> $GITHUB_ENV
       - name: Upload to R2
         run: |
           rclone copyto "$UPLOAD_FILE" "r2:nostaligafun-files/games/games-accualy/APPS/MovieApp_Data/files/movies/the-super-mario-galaxy-movie.${UPLOAD_EXT}" \
