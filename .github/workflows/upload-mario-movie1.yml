@@ -1,4 +1,4 @@
-name: Magnet upload
+name: mario 1 movie upload
 on:
   workflow_dispatch:
 jobs:
