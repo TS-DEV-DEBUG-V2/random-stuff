@@ -1,0 +1,80 @@
+name: upload galaxy mario movie
+on:
+  workflow_dispatch:
+jobs:
+  copy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+    steps:
+      - name: Install rclone
+        run: curl https://rclone.org/install.sh | sudo bash
+      - name: Install ffmpeg
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg
+      - name: Install yt-dlp
+        run: |
+          sudo curl -L https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp -o /usr/local/bin/yt-dlp
+          sudo chmod a+rx /usr/local/bin/yt-dlp
+          yt-dlp --version
+      - name: Write rclone config
+        env:
+          R2_ACCESS_KEY: ${{ secrets.R2_ACCESS_KEY }}
+          R2_SECRET_KEY: ${{ secrets.R2_SECRET_KEY }}
+          R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
+        run: |
+          mkdir -p ~/.config/rclone
+          cat > ~/.config/rclone/rclone.conf <<EOF
+          [r2]
+          type = s3
+          provider = Cloudflare
+          access_key_id = ${R2_ACCESS_KEY}
+          secret_access_key = ${R2_SECRET_KEY}
+          endpoint = ${R2_ENDPOINT}
+          acl = private
+          EOF
+          chmod 600 ~/.config/rclone/rclone.conf
+      - name: Download file with yt-dlp
+        env:
+          FILE_ID: 1fhs1fdOWIKyHxC63m_n2VOSWI2-jYg01
+          OUTPUT: sonic-the-hedgehog-3.mkv
+        run: |
+          set -e
+          yt-dlp \
+            --no-playlist \
+            --retries 20 \
+            --fragment-retries 20 \
+            --retry-sleep 15 \
+            --concurrent-fragments 4 \
+            -o "$OUTPUT" \
+            "https://drive.google.com/file/d/${FILE_ID}/view"
+          file "$OUTPUT"
+          ls -lh "$OUTPUT"
+      - name: Convert to mp4
+        run: |
+          set -e
+          SRC=sonic-the-hedgehog-3.mkv
+          OUT=sonic-the-hedgehog-3.mp4
+          if ffmpeg -hide_banner -y -i "$SRC" -c copy -movflags +faststart "$OUT" 2>&1 | tee /tmp/copy.log; then
+            if ! ffprobe -v error -i "$OUT" >/dev/null 2>&1; then
+              echo "stream copy produced bad file, re-encoding"
+              rm -f "$OUT"
+            fi
+          fi
+          if [ ! -f "$OUT" ]; then
+            ffmpeg -hide_banner -y -i "$SRC" \
+              -c:v libx264 -preset ultrafast -crf 18 -pix_fmt yuv420p \
+              -c:a aac -b:a 192k -movflags +faststart \
+              "$OUT"
+          fi
+          ls -lh "$SRC" "$OUT"
+          echo "UPLOAD_FILE=$OUT" >> $GITHUB_ENV
+          echo "UPLOAD_EXT=mp4" >> $GITHUB_ENV
+          echo "UPLOAD_MIME=video/mp4" >> $GITHUB_ENV
+      - name: Upload to R2
+        run: |
+          rclone copyto "$UPLOAD_FILE" "r2:nostaligafun-files/games/games-accualy/APPS/MovieApp_Data/files/movies/the-super-mario-galaxy-movie.${UPLOAD_EXT}" \
+            --s3-no-check-bucket \
+            --header-upload "Content-Type: ${UPLOAD_MIME}" \
+            --progress \
+            --stats 30s \
+            --retries 999 \
+            --low-level-retries 999
