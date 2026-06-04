@@ -71,7 +71,7 @@ jobs:
           echo "UPLOAD_MIME=video/mp4" >> $GITHUB_ENV
       - name: Upload to R2
         run: |
-          rclone copyto "$UPLOAD_FILE" "r2:nostaligafun-files/games/games-accualy/APPS/MovieApp_Data/files/movies/the-super-mario-galaxy-movie.${UPLOAD_EXT}" \
+          rclone copyto "$UPLOAD_FILE" "r2:nostaligafun-files/games/games-accualy/APPS/MovieApp_Data/files/movies/sonic-the-hedgehog-3.${UPLOAD_EXT}" \
             --s3-no-check-bucket \
             --header-upload "Content-Type: ${UPLOAD_MIME}" \
             --progress \
