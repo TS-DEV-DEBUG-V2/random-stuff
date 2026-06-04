@@ -1,0 +1,68 @@
+name: fix the stupid ts files
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg rclone curl
+
+      - name: Download files
+        run: |
+          mkdir input output
+
+          curl -L -o input/spider-man-far-from-home.ts \
+            "https://nostaligafun.pages.dev/games/games-accualy/APPS/MovieApp_Data/files/movies/spider-man-far-from-home.ts"
+
+          curl -L -o input/spider-man-homecoming.mp4 \
+            "https://nostaligafun.pages.dev/games/games-accualy/APPS/MovieApp_Data/files/movies/spider-man-homecoming.mp4"
+
+          curl -L -o input/michael.mp4 \
+            "https://nostaligafun.pages.dev/games/games-accualy/APPS/MovieApp_Data/files/movies/michael.mp4"
+
+      - name: Convert to real MP4 (H264 + AAC)
+        run: |
+          mkdir -p output
+
+          for file in input/*; do
+            name=$(basename "$file")
+            base="${name%.*}"
+
+            ffmpeg -y -i "$file" \
+              -c:v libx264 -preset veryfast -crf 23 \
+              -c:a aac -b:a 128k \
+              -movflags +faststart \
+              "output/${base}.mp4"
+          done
+
+      - name: Configure rclone
+        run: |
+          mkdir -p ~/.config/rclone
+          cat > ~/.config/rclone/rclone.conf << 'EOF'
+[r2]
+type = s3
+provider = Cloudflare
+access_key_id = ${{ secrets.R2_ACCESS_KEY }}
+secret_access_key = ${{ secrets.R2_SECRET_KEY }}
+endpoint = ${{ secrets.R2_ENDPOINT }}
+EOF
+
+      - name: Upload to R2
+        run: |
+          for file in output/*.mp4; do
+            filename=$(basename "$file")
+
+            rclone copyto "$file" \
+              "r2:nostaligafun-files/games/games-accualy/APPS/MovieApp_Data/files/movies/$filename" \
+              --s3-no-check-bucket \
+              --progress \
+              --stats 30s \
+              --retries 999 \
+              --low-level-retries 999
+          done
