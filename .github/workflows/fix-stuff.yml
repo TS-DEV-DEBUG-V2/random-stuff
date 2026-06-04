@@ -45,13 +45,13 @@ jobs:
         run: |
           mkdir -p ~/.config/rclone
           cat > ~/.config/rclone/rclone.conf << 'EOF'
-[r2]
-type = s3
-provider = Cloudflare
-access_key_id = ${{ secrets.R2_ACCESS_KEY }}
-secret_access_key = ${{ secrets.R2_SECRET_KEY }}
-endpoint = ${{ secrets.R2_ENDPOINT }}
-EOF
+          [r2]
+          type = s3
+          provider = Cloudflare
+          access_key_id = ${{ secrets.R2_ACCESS_KEY }}
+          secret_access_key = ${{ secrets.R2_SECRET_KEY }}
+          endpoint = ${{ secrets.R2_ENDPOINT }}
+          EOF
 
       - name: Upload to R2
         run: |
