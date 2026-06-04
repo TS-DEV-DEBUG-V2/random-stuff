@@ -1,4 +1,4 @@
-name: madagascar 2 upload
+name: madagascar 3 upload
 on:
   workflow_dispatch:
 jobs:
