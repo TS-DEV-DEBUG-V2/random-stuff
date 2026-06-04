@@ -1,0 +1,95 @@
+name: backrooms upload
+
+on:
+  workflow_dispatch:
+
+jobs:
+  copy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+
+    env:
+      MAGNET: "magnet:?xt=urn:btih:A843E06DF96E1A863A1AB14F50B639DB03EA2C6E&dn=Backrooms%202026%20720p%20VOSTFR%20HDTS%20x264-FS&tr=udp%3A%2F%2Ftracker.opentrackr.org%3A1337&tr=udp%3A%2F%2Fopen.stealth.si%3A80%2Fannounce&tr=udp%3A%2F%2Ftracker.torrent.eu.org%3A451%2Fannounce&tr=udp%3A%2F%2Ftracker.bittor.pw%3A1337%2Fannounce&tr=udp%3A%2F%2Fpublic.popcorn-tracker.org%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.dler.org%3A6969%2Fannounce&tr=udp%3A%2F%2Fexodus.desync.com%3A6969&tr=udp%3A%2F%2Fopen.demonii.com%3A1337%2Fannounce&tr=udp%3A%2F%2Fglotorrents.pw%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.coppersurfer.tk%3A6969&tr=udp%3A%2F%2Ftorrent.gresille.org%3A80%2Fannounce&tr=udp%3A%2F%2Fp4p.arenabg.com%3A1337&tr=udp%3A%2F%2Ftracker.internetwarriors.net%3A1337"
+      OUTPUT_FILENAME: "the-backrooms.mp4"
+      R2_PATH: "nostaligafun-files/games/games-accualy/APPS/MovieApp_Data/files/movies"
+
+    steps:
+      - name: Install rclone and aria2
+        run: |
+          curl https://rclone.org/install.sh | sudo bash
+          sudo apt-get update
+          sudo apt-get install -y aria2 ffmpeg
+
+      - name: Write rclone config
+        env:
+          R2_ACCESS_KEY: ${{ secrets.R2_ACCESS_KEY }}
+          R2_SECRET_KEY: ${{ secrets.R2_SECRET_KEY }}
+          R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
+        run: |
+          mkdir -p ~/.config/rclone
+          cat > ~/.config/rclone/rclone.conf <<EOF
+          [r2]
+          type = s3
+          provider = Cloudflare
+          access_key_id = ${R2_ACCESS_KEY}
+          secret_access_key = ${R2_SECRET_KEY}
+          endpoint = ${R2_ENDPOINT}
+          acl = private
+          EOF
+          chmod 600 ~/.config/rclone/rclone.conf
+
+      - name: Download from magnet
+        run: |
+          mkdir -p downloads
+          aria2c \
+            --dir=downloads \
+            --seed-time=0 \
+            --bt-stop-timeout=300 \
+            --max-connection-per-server=16 \
+            --split=16 \
+            --summary-interval=30 \
+            --bt-save-metadata=false \
+            "$MAGNET"
+
+          echo "Downloaded files:"
+          find downloads -type f -exec ls -lh {} \;
+
+      - name: Rename and normalize video then upload to R2
+        run: |
+          FILE=$(find downloads -type f \( -iname "*.mp4" -o -iname "*.mkv" \) | head -n 1)
+
+          if [ -z "$FILE" ]; then
+            echo "No video file found in download"
+            find downloads -type f
+            exit 1
+          fi
+
+          echo "Found file: $FILE"
+
+          BASE_DIR="downloads"
+          OUTPUT_PATH="$BASE_DIR/$OUTPUT_FILENAME"
+
+          EXT="${FILE##*.}"
+          EXT=$(echo "$EXT" | tr '[:upper:]' '[:lower:]')
+
+          if [ "$EXT" = "mkv" ]; then
+            echo "MKV detected — remuxing to MP4 (stream copy)..."
+            TMP_MP4="$BASE_DIR/temp.mp4"
+
+            ffmpeg -y -i "$FILE" -c copy -movflags +faststart "$TMP_MP4"
+
+            FILE="$TMP_MP4"
+          fi
+
+          echo "Final file: $FILE"
+
+          mv "$FILE" "$OUTPUT_PATH"
+
+          ls -lh "$OUTPUT_PATH"
+
+          rclone copyto "$OUTPUT_PATH" "r2:${R2_PATH}/${OUTPUT_FILENAME}" \
+            --s3-no-check-bucket \
+            --progress \
+            --stats 30s \
+            --retries 999 \
+            --low-level-retries 999
