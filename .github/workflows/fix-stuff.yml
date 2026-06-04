@@ -1,10 +1,10 @@
-name: fix the stupid ts files
+name: Smart Video Convert + Upload to R2
 
 on:
   workflow_dispatch:
 
 jobs:
-  build:
+  convert:
     runs-on: ubuntu-latest
 
     steps:
@@ -13,9 +13,9 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y ffmpeg rclone curl
 
-      - name: Download files
+      - name: Download media files
         run: |
-          mkdir input output
+          mkdir -p input output
 
           curl -L -o input/spider-man-far-from-home.ts \
             "https://nostaligafun.pages.dev/games/games-accualy/APPS/MovieApp_Data/files/movies/spider-man-far-from-home.ts"
@@ -26,7 +26,7 @@ jobs:
           curl -L -o input/michael.mp4 \
             "https://nostaligafun.pages.dev/games/games-accualy/APPS/MovieApp_Data/files/movies/michael.mp4"
 
-      - name: Convert to real MP4 (H264 + AAC)
+      - name: Smart convert pipeline
         run: |
           mkdir -p output
 
@@ -34,6 +34,37 @@ jobs:
             name=$(basename "$file")
             base="${name%.*}"
 
+            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+            echo "Processing: $name"
+            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+            # 1) FAST PATH: full stream copy
+            ffmpeg -y -i "$file" \
+              -c:v copy -c:a copy \
+              -movflags +faststart \
+              "output/${base}.mp4" && continue
+
+            echo " Full copy failed → trying hybrid fixes"
+
+            # 2) video copy, audio re-encode
+            ffmpeg -y -i "$file" \
+              -c:v copy \
+              -c:a aac -b:a 128k \
+              -movflags +faststart \
+              "output/${base}.mp4" && continue
+
+            echo "Video copy failed → trying audio copy"
+
+            # 3) audio copy, video re-encode
+            ffmpeg -y -i "$file" \
+              -c:v libx264 -preset veryfast -crf 23 \
+              -c:a copy \
+              -movflags +faststart \
+              "output/${base}.mp4" && continue
+
+            echo "Full fallback re-encode"
+
+            # 4) full encode fallback
             ffmpeg -y -i "$file" \
               -c:v libx264 -preset veryfast -crf 23 \
               -c:a aac -b:a 128k \
