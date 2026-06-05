@@ -1,4 +1,4 @@
-name: magnet 2 r2
+name: shark tale upload
 on:
   workflow_dispatch:
 jobs:
