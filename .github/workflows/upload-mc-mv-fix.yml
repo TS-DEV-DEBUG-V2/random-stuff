@@ -1,4 +1,4 @@
-name: upload bee movie
+name: upload a minecraft movie fixed
 on:
   workflow_dispatch:
 jobs:
