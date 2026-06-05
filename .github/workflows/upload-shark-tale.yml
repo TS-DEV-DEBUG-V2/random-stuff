@@ -1,4 +1,4 @@
-name: shark tale upload
+name: magnet 2 r2
 on:
   workflow_dispatch:
 jobs:
@@ -10,11 +10,11 @@ jobs:
       OUTPUT_FILENAME: "shark-tale.mp4"
       R2_PATH: "nostaligafun-files/games/games-accualy/APPS/MovieApp_Data/files/movies"
     steps:
-      - name: Install rclone and aria2
+      - name: Install rclone and rqbit
         run: |
           curl https://rclone.org/install.sh | sudo bash
-          sudo apt-get update
-          sudo apt-get install -y aria2
+          sudo curl -L https://github.com/ikatson/rqbit/releases/latest/download/rqbit-linux-static-x86_64 -o /usr/local/bin/rqbit
+          sudo chmod +x /usr/local/bin/rqbit
       - name: Write rclone config
         env:
           R2_ACCESS_KEY: ${{ secrets.R2_ACCESS_KEY }}
@@ -35,14 +35,11 @@ jobs:
       - name: Download from magnet
         run: |
           mkdir -p downloads
-          aria2c \
-            --dir=downloads \
-            --seed-time=0 \
-            --bt-stop-timeout=300 \
-            --max-connection-per-server=16 \
-            --split=16 \
-            --summary-interval=30 \
-            --bt-save-metadata=false \
+          rqbit download \
+            --output-folder downloads \
+            --disable-dht-persistence \
+            --peer-connect-timeout 5s \
+            --peer-read-write-timeout 10s \
             "$MAGNET"
           echo "Downloaded files:"
           find downloads -type f -exec ls -lh {} \;
