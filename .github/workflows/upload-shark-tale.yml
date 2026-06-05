@@ -10,10 +10,14 @@ jobs:
       OUTPUT_FILENAME: "shark-tale.mp4"
       R2_PATH: "nostaligafun-files/games/games-accualy/APPS/MovieApp_Data/files/movies"
     steps:
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
       - name: Install rclone and webtorrent
         run: |
           curl https://rclone.org/install.sh | sudo bash
-          sudo npm install -g webtorrent-cli
+          npm install -g webtorrent-cli
       - name: Write rclone config
         env:
           R2_ACCESS_KEY: ${{ secrets.R2_ACCESS_KEY }}
