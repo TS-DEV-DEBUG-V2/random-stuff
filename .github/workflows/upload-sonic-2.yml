@@ -1,0 +1,72 @@
+name: sonic 2 upload
+on:
+  workflow_dispatch:
+jobs:
+  copy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+    steps:
+      - name: Install rclone
+        run: curl https://rclone.org/install.sh | sudo bash
+      - name: Write rclone config
+        env:
+          GDRIVE_SECRET: ${{ secrets.GDRIVE_SECRET }}
+          R2_ACCESS_KEY: ${{ secrets.R2_ACCESS_KEY }}
+          R2_SECRET_KEY: ${{ secrets.R2_SECRET_KEY }}
+          R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
+        run: |
+          mkdir -p ~/.config/rclone
+          cat > ~/.config/rclone/rclone.conf <<EOF
+          [gdrive]
+          type = drive
+          scope = drive.readonly
+          token = ${GDRIVE_SECRET}
+          [r2]
+          type = s3
+          provider = Cloudflare
+          access_key_id = ${R2_ACCESS_KEY}
+          secret_access_key = ${R2_SECRET_KEY}
+          endpoint = ${R2_ENDPOINT}
+          acl = private
+          EOF
+          chmod 600 ~/.config/rclone/rclone.conf
+      - name: Refresh token
+        run: "rclone about gdrive:"
+      - name: Download file via Drive API
+        env:
+          FILE_ID: 1zTf0VIh-SoQJcpUy82uRYRdaNbj2iIhE
+          OUTPUT: sonic-the-hedgehog-2.mp4
+        run: |
+          ACCESS_TOKEN=$(python3 -c "
+          import json, configparser, os
+          c = configparser.ConfigParser()
+          c.read(os.path.expanduser('~/.config/rclone/rclone.conf'))
+          print(json.loads(c['gdrive']['token'])['access_token'])
+          ")
+          curl -L --fail --progress-bar \
+            -H "Authorization: Bearer $ACCESS_TOKEN" \
+            "https://www.googleapis.com/drive/v3/files/${FILE_ID}?alt=media" \
+            -o "$OUTPUT"
+          ls -lh "$OUTPUT"
+      - name: Verify and remux if needed
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg
+          FORMAT=$(ffprobe -v error -show_entries format=format_name -of csv=p=0 sonic-the-hedgehog-2.mp4)
+          echo "Detected format: $FORMAT"
+          if echo "$FORMAT" | grep -q "mp4\|mov\|m4a"; then
+            echo "Real mp4, skipping remux"
+          else
+            echo "Not mp4, remuxing streams into mp4 container"
+            ffmpeg -v error -stats -i sonic-the-hedgehog-2.mp4 -c copy -map 0 -movflags +faststart fixed.mp4
+            mv fixed.mp4 sonic-the-hedgehog-2.mp4
+            ls -lh sonic-the-hedgehog-2.mp4
+            ffprobe -v error -show_entries format=format_name -of csv=p=0 sonic-the-hedgehog-2.mp4
+          fi
+      - name: Upload to R2
+        run: |
+          rclone copyto "sonic-the-hedgehog-2.mp4" "r2:nostaligafun-files/games/games-accualy/APPS/MovieApp_Data/files/movies/sonic-the-hedgehog-2.mp4" \
+            --s3-no-check-bucket \
+            --progress \
+            --stats 30s \
+            --retries 999 \
+            --low-level-retries 999
