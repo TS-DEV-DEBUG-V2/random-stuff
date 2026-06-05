@@ -1,0 +1,104 @@
+name: TORRENT 2 R2
+on:
+  workflow_dispatch:
+jobs:
+  copy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+    env:
+      R2_PATH: "nostaligafun-files/games/games-accualy/APPS/MovieApp_Data/files/movies"
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Install rclone, aria2, ffmpeg
+        run: |
+          curl https://rclone.org/install.sh | sudo bash
+          sudo apt-get update
+          sudo apt-get install -y aria2 ffmpeg
+
+      - name: Write rclone config
+        env:
+          R2_ACCESS_KEY: ${{ secrets.R2_ACCESS_KEY }}
+          R2_SECRET_KEY: ${{ secrets.R2_SECRET_KEY }}
+          R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
+        run: |
+          mkdir -p ~/.config/rclone
+          cat > ~/.config/rclone/rclone.conf <<EOF
+          [r2]
+          type = s3
+          provider = Cloudflare
+          access_key_id = ${R2_ACCESS_KEY}
+          secret_access_key = ${R2_SECRET_KEY}
+          endpoint = ${R2_ENDPOINT}
+          acl = private
+          EOF
+          chmod 600 ~/.config/rclone/rclone.conf
+
+      - name: Process every torrent in /t
+        run: |
+          set -e
+          shopt -s nullglob nocaseglob
+          TORRENTS=(t/*.torrent)
+          shopt -u nocaseglob
+          if [ ${#TORRENTS[@]} -eq 0 ]; then
+            echo "No .torrent files found in t/"
+            exit 1
+          fi
+
+          for TORRENT in "${TORRENTS[@]}"; do
+            BASENAME=$(basename "$TORRENT" .torrent)
+            OUTPUT_FILENAME="${BASENAME}.mp4"
+            WORKDIR=$(mktemp -d)
+            echo "=============================="
+            echo "Processing: $TORRENT"
+            echo "Target name: $OUTPUT_FILENAME"
+            echo "Workdir: $WORKDIR"
+            echo "=============================="
+
+            aria2c \
+              --dir="$WORKDIR" \
+              --seed-time=0 \
+              --bt-stop-timeout=300 \
+              --max-connection-per-server=16 \
+              --split=16 \
+              --summary-interval=30 \
+              --bt-save-metadata=false \
+              "$TORRENT"
+
+            echo "Downloaded files:"
+            find "$WORKDIR" -type f -exec ls -lh {} \;
+
+            MEDIA=$(find "$WORKDIR" -type f \( -iname "*.mp4" -o -iname "*.mkv" \) ! -iname "*sample*" -printf "%s\t%p\n" | sort -rn | head -n1 | cut -f2-)
+            if [ -z "$MEDIA" ]; then
+              echo "No .mp4 or .mkv found for $TORRENT"
+              rm -rf "$WORKDIR"
+              continue
+            fi
+            echo "Selected media: $MEDIA"
+
+            FINAL="$WORKDIR/$OUTPUT_FILENAME"
+            EXT="${MEDIA##*.}"
+            EXT_LC=$(echo "$EXT" | tr '[:upper:]' '[:lower:]')
+
+            if [ "$EXT_LC" = "mkv" ]; then
+              echo "Remuxing mkv -> mp4 (no re-encode)"
+              ffmpeg -y -i "$MEDIA" -map 0 -c copy -movflags +faststart "$FINAL"
+              rm -f "$MEDIA"
+            else
+              if [ "$MEDIA" != "$FINAL" ]; then
+                mv "$MEDIA" "$FINAL"
+              fi
+            fi
+
+            ls -lh "$FINAL"
+
+            rclone copyto "$FINAL" "r2:${R2_PATH}/${OUTPUT_FILENAME}" \
+              --s3-no-check-bucket \
+              --progress \
+              --stats 30s \
+              --retries 999 \
+              --low-level-retries 999
+
+            rm -rf "$WORKDIR"
+          done
