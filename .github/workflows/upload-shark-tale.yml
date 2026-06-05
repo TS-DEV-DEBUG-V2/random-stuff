@@ -17,7 +17,13 @@ jobs:
       - name: Install rclone and webtorrent
         run: |
           curl https://rclone.org/install.sh | sudo bash
-          npm install -g webtorrent-cli --ignore-scripts
+          npm install -g pnpm
+          mkdir -p "$HOME/.local/share/pnpm"
+          echo "PNPM_HOME=$HOME/.local/share/pnpm" >> $GITHUB_ENV
+          echo "$HOME/.local/share/pnpm" >> $GITHUB_PATH
+          export PNPM_HOME="$HOME/.local/share/pnpm"
+          export PATH="$PNPM_HOME:$PATH"
+          pnpm add -g webtorrent-cli
       - name: Write rclone config
         env:
           R2_ACCESS_KEY: ${{ secrets.R2_ACCESS_KEY }}
