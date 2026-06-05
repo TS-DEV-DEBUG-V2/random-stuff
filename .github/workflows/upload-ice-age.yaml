@@ -1,4 +1,4 @@
-name: upload angry birds 2 movie
+name: upload ice age
 on:
   workflow_dispatch:
 jobs:
@@ -6,8 +6,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 350
     env:
-      MAGNET: "/t/the-angry-birds-movie-2.torrent"
-      OUTPUT_FILENAME: "the-angry-birds-movie-2.mp4"
+      MAGNET: "/t/ice-age.torrent"
+      OUTPUT_FILENAME: "ice-age.mp4"
       R2_PATH: "nostaligafun-files/games/games-accualy/APPS/MovieApp_Data/files/movies"
     steps:
       - name: Install rclone and aria2
