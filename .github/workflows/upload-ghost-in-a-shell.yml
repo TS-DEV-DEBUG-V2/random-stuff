@@ -1,4 +1,4 @@
-name: upload ghost in a shell
+name: upload ghost in the shell
 on:
   workflow_dispatch:
 jobs:
@@ -7,7 +7,7 @@ jobs:
     timeout-minutes: 350
     env:
       MAGNET: "magnet:?xt=urn:btih:9E3AFA049055E9DBE013905867941482D5958791&dn=Ghost.in.the.Shell.1995.1080p.BluRay.DDP5.1.x265.10bit-GalaxyRG2&tr=udp%3A%2F%2Ftracker.opentrackr.org%3A1337&tr=udp%3A%2F%2Fopen.stealth.si%3A80%2Fannounce&tr=udp%3A%2F%2Ftracker.torrent.eu.org%3A451%2Fannounce&tr=udp%3A%2F%2Ftracker.bittor.pw%3A1337%2Fannounce&tr=udp%3A%2F%2Fpublic.popcorn-tracker.org%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.dler.org%3A6969%2Fannounce&tr=udp%3A%2F%2Fexodus.desync.com%3A6969&tr=udp%3A%2F%2Fopen.demonii.com%3A1337%2Fannounce&tr=udp%3A%2F%2Fglotorrents.pw%3A6969%2Fannounce&tr=udp%3A%2F%2Ftracker.coppersurfer.tk%3A6969&tr=udp%3A%2F%2Ftorrent.gresille.org%3A80%2Fannounce&tr=udp%3A%2F%2Fp4p.arenabg.com%3A1337&tr=udp%3A%2F%2Ftracker.internetwarriors.net%3A1337"
-      OUTPUT_FILENAME: "ghost-in-a-shell.mp4"
+      OUTPUT_FILENAME: "ghost-in-the-shell.mp4"
       R2_PATH: "nostaligafun-files/games/games-accualy/APPS/MovieApp_Data/files/movies"
     steps:
       - name: Install rclone, aria2 and ffmpeg
