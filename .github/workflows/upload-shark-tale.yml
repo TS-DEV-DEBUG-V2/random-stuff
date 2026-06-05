@@ -14,16 +14,12 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-      - name: Install rclone and webtorrent
+      - name: Install rclone and transmission
         run: |
           curl https://rclone.org/install.sh | sudo bash
-          npm install -g pnpm
-          mkdir -p "$HOME/.local/share/pnpm"
-          echo "PNPM_HOME=$HOME/.local/share/pnpm" >> $GITHUB_ENV
-          echo "$HOME/.local/share/pnpm" >> $GITHUB_PATH
-          export PNPM_HOME="$HOME/.local/share/pnpm"
-          export PATH="$PNPM_HOME:$PATH"
-          pnpm add -g webtorrent-cli
+          sudo apt-get update
+          sudo apt-get install -y transmission-daemon transmission-cli jq
+          sudo systemctl stop transmission-daemon || true
       - name: Write rclone config
         env:
           R2_ACCESS_KEY: ${{ secrets.R2_ACCESS_KEY }}
@@ -44,7 +40,52 @@ jobs:
       - name: Download from magnet
         run: |
           mkdir -p downloads
-          webtorrent download "$MAGNET" --out downloads
+          DL="$(pwd)/downloads"
+          mkdir -p ~/.config/transmission-daemon
+          cat > ~/.config/transmission-daemon/settings.json <<EOF
+          {
+            "download-dir": "$DL",
+            "incomplete-dir-enabled": false,
+            "rpc-authentication-required": false,
+            "rpc-bind-address": "127.0.0.1",
+            "rpc-port": 9091,
+            "rpc-whitelist-enabled": false,
+            "dht-enabled": true,
+            "pex-enabled": true,
+            "lpd-enabled": true,
+            "utp-enabled": true,
+            "peer-limit-global": 500,
+            "peer-limit-per-torrent": 200,
+            "speed-limit-down-enabled": false,
+            "speed-limit-up-enabled": false,
+            "ratio-limit-enabled": true,
+            "ratio-limit": 0,
+            "encryption": 1
+          }
+          EOF
+
+          transmission-daemon -g ~/.config/transmission-daemon -f &
+          DPID=$!
+          sleep 5
+
+          transmission-remote -a "$MAGNET"
+
+          while true; do
+            STATUS=$(transmission-remote -l | tail -n +2 | head -n -1)
+            echo "$STATUS"
+            DONE=$(echo "$STATUS" | awk '{print $5}' | grep -c "100%")
+            TOTAL=$(echo "$STATUS" | wc -l)
+            if [ "$DONE" -gt 0 ] && [ "$DONE" -eq "$TOTAL" ]; then
+              echo "Download complete"
+              break
+            fi
+            sleep 30
+          done
+
+          transmission-remote -t all --remove
+          kill $DPID || true
+          sleep 2
+
           echo "Downloaded files:"
           find downloads -type f -exec ls -lh {} \;
       - name: Rename mp4 and upload to R2
