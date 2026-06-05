@@ -1,4 +1,4 @@
-name: pets 1 upload
+name: pets 2 upload
 on:
   workflow_dispatch:
 jobs:
