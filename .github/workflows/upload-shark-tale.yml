@@ -1,4 +1,4 @@
-name: shark tale upload
+name: magnet 2 r2
 on:
   workflow_dispatch:
 jobs:
@@ -10,11 +10,10 @@ jobs:
       OUTPUT_FILENAME: "shark-tale.mp4"
       R2_PATH: "nostaligafun-files/games/games-accualy/APPS/MovieApp_Data/files/movies"
     steps:
-      - name: Install rclone and rqbit
+      - name: Install rclone and webtorrent
         run: |
           curl https://rclone.org/install.sh | sudo bash
-          sudo curl -L https://github.com/ikatson/rqbit/releases/latest/download/rqbit-linux-static-x86_64 -o /usr/local/bin/rqbit
-          sudo chmod +x /usr/local/bin/rqbit
+          sudo npm install -g webtorrent-cli
       - name: Write rclone config
         env:
           R2_ACCESS_KEY: ${{ secrets.R2_ACCESS_KEY }}
@@ -35,12 +34,7 @@ jobs:
       - name: Download from magnet
         run: |
           mkdir -p downloads
-          rqbit download \
-            --output-folder downloads \
-            --disable-dht-persistence \
-            --peer-connect-timeout 5s \
-            --peer-read-write-timeout 10s \
-            "$MAGNET"
+          webtorrent download "$MAGNET" --out downloads
           echo "Downloaded files:"
           find downloads -type f -exec ls -lh {} \;
       - name: Rename mp4 and upload to R2
