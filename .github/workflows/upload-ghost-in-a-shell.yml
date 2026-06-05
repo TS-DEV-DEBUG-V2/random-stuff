@@ -56,7 +56,7 @@ jobs:
           fi
           echo "Found mkv: $MKV"
           RENAMED="downloads/$OUTPUT_FILENAME"
-          ffmpeg -i "$MKV" -c copy -map 0:v -map 0:a "$RENAMED"
+          ffmpeg -i "$MKV" -map 0:v -map 0:a -c:v copy -c:a aac -b:a 192k -ac 2 "$RENAMED"
           ls -lh "$RENAMED"
           rclone copyto "$RENAMED" "r2:${R2_PATH}/${OUTPUT_FILENAME}" \
             --s3-no-check-bucket \
