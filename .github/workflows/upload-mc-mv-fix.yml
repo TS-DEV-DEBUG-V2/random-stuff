@@ -46,7 +46,7 @@ jobs:
             "$MAGNET"
           echo "Downloaded files:"
           find downloads -type f -exec ls -lh {} \;
-      - name: Transcode mkv to mp4 and upload to R2
+      - name: Remux mkv to mp4 and upload to R2
         run: |
           MKV=$(find downloads -type f -iname "*.mkv" | head -n1)
           if [ -z "$MKV" ]; then
@@ -58,7 +58,7 @@ jobs:
           RENAMED="downloads/$OUTPUT_FILENAME"
           ffmpeg -i "$MKV" \
             -map 0:v:0 -map 0:a:0 \
-            -c:v libx264 -preset ultrafast -crf 20 -pix_fmt yuv420p -profile:v high -level 4.1 \
+            -c:v copy -tag:v hvc1 \
             -c:a copy \
             -movflags +faststart \
             "$RENAMED"
