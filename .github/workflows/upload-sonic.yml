@@ -6,7 +6,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 350
     env:
-      MAGNET: "magnet:?xt=urn:btih:O7X3NTZTG36LR7B7YZ5CEL2UR74IX4AM&dn=Sonic%20The%20Hedgehog%20(2020)%20%5B720p%5D%20%5BWEBRip%5D%20%5BYTS.MX%5D&tr=udp%3A%2F%2Ftracker.coppersurfer.tk%3A6969%2Fannounce"
+      MAGNET: "/assets/Sonic the Hedgehog (2020) [720p] [WEBRip] [YTS.BZ].torrent"
       OUTPUT_FILENAME: "sonic-the-hedgehog.mp4"
       R2_PATH: "nostaligafun-files/games/games-accualy/APPS/MovieApp_Data/files/movies"
     steps:
@@ -32,7 +32,7 @@ jobs:
           acl = private
           EOF
           chmod 600 ~/.config/rclone/rclone.conf
-      - name: Download from magnet
+      - name: Download from torrent
         run: |
           mkdir -p downloads
           aria2c \
