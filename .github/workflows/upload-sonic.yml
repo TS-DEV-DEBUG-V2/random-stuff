@@ -32,6 +32,7 @@ jobs:
           acl = private
           EOF
           chmod 600 ~/.config/rclone/rclone.conf
+      - uses: actions/checkout@v4
       - name: Download from torrent
         run: |
           mkdir -p downloads
@@ -43,7 +44,7 @@ jobs:
             --split=16 \
             --summary-interval=30 \
             --bt-save-metadata=false \
-            "$MAGNET"
+            "$GITHUB_WORKSPACE/$MAGNET"
           echo "Downloaded files:"
           find downloads -type f -exec ls -lh {} \;
       - name: Rename mp4 and upload to R2
