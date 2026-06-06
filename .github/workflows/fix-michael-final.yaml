@@ -1,0 +1,61 @@
+name: fix michael final ver
+
+on:
+  workflow_dispatch:
+
+jobs:
+  remux:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+
+    steps:
+      - name: Install FFmpeg
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
+
+      - name: Install rclone
+        run: |
+          curl https://rclone.org/install.sh | sudo bash
+
+      - name: Download source file
+        run: |
+          curl -L \
+            "https://nostaligafun.pages.dev/games/games-accualy/APPS/MovieApp_Data/files/movies/michael.mp4" \
+            -o michael_source.mp4
+
+      - name: Remux TS to real MP4 (no re-encoding)
+        run: |
+          ffmpeg \
+            -f mpegts \
+            -i michael_source.mp4 \
+            -map 0 \
+            -c copy \
+            -movflags +faststart \
+            michael.mp4
+
+      - name: Configure rclone
+        run: |
+          mkdir -p ~/.config/rclone
+
+          cat > ~/.config/rclone/rclone.conf <<EOF
+          [r2]
+          type = s3
+          provider = Cloudflare
+          access_key_id = ${{ secrets.R2_ACCESS_KEY }}
+          secret_access_key = ${{ secrets.R2_SECRET_KEY }}
+          endpoint = ${{ secrets.R2_ENDPOINT }}
+          no_check_bucket = true
+          EOF
+
+      - name: Upload to R2 (overwrite original)
+        run: |
+          rclone copyto \
+            michael.mp4 \
+            r2:nostaligafun-files/games/games-accualy/APPS/MovieApp_Data/files/movies/michael.mp4 \
+            --progress
+
+      - name: Verify uploaded object
+        run: |
+          rclone ls \
+            r2:nostaligafun-files/games/games-accualy/APPS/MovieApp_Data/files/movies/
