@@ -11,16 +11,14 @@ jobs:
         run: |
           curl https://rclone.org/install.sh | sudo bash
           sudo apt-get update
-          sudo apt-get install -y ffmpeg jq python3
-          sudo curl -L https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp -o /usr/local/bin/yt-dlp
-          sudo chmod a+rx /usr/local/bin/yt-dlp
-          yt-dlp --version
+          sudo apt-get install -y ffmpeg python3
 
       - name: Write rclone config
         env:
           R2_ACCESS_KEY: ${{ secrets.R2_ACCESS_KEY }}
           R2_SECRET_KEY: ${{ secrets.R2_SECRET_KEY }}
           R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
+          GDRIVE_SECRET: ${{ secrets.GDRIVE_SECRET }}
         run: |
           mkdir -p ~/.config/rclone
           cat > ~/.config/rclone/rclone.conf <<EOF
@@ -31,37 +29,39 @@ jobs:
           secret_access_key = ${R2_SECRET_KEY}
           endpoint = ${R2_ENDPOINT}
           acl = private
+
+          [gdrive]
+          type = drive
+          scope = drive
+          token = ${GDRIVE_SECRET}
           EOF
           chmod 600 ~/.config/rclone/rclone.conf
 
-      - name: Download folder with yt-dlp
+      - name: Download folder from gdrive
         env:
-          FOLDER_URL: https://drive.google.com/drive/folders/11W6C-Jqv9iQVasqjfiaYz77puax1UTjH
+          FOLDER_ID: 11W6C-Jqv9iQVasqjfiaYz77puax1UTjH
         run: |
           mkdir -p downloads
-          cd downloads
-          yt-dlp \
-            --ignore-errors \
-            --no-warnings \
+          rclone copy "gdrive:" downloads \
+            --drive-root-folder-id "$FOLDER_ID" \
+            --transfers 4 \
             --retries 20 \
-            --fragment-retries 20 \
-            --retry-sleep 15 \
-            --concurrent-fragments 4 \
-            -o "%(playlist)s/%(title)s.%(ext)s" \
-            "$FOLDER_URL" || true
+            --low-level-retries 30 \
+            --stats 30s \
+            --progress
           echo "--- downloaded tree ---"
-          find . -maxdepth 3 -type f | head -200
+          find downloads -maxdepth 3 | head -300
 
-      - name: Flatten any stray top-level files
+      - name: Flatten nested subfolders into season folders
         run: |
           cd downloads
-          mkdir -p "Misc"
-          for f in *; do
-            if [ -f "$f" ]; then
-              mv "$f" "Misc/"
-            fi
+          shopt -s nullglob
+          for top in */; do
+            find "$top" -mindepth 2 -type f -print0 | while IFS= read -r -d '' f; do
+              mv "$f" "$top" 2>/dev/null || true
+            done
+            find "$top" -mindepth 1 -type d -empty -delete 2>/dev/null || true
           done
-          rmdir "Misc" 2>/dev/null || true
 
       - name: Remux ts and mkv to mp4
         run: |
@@ -126,7 +126,13 @@ jobs:
       - name: Upload to R2
         run: |
           BASE="r2:nostaligafun-files/games/games-accualy/APPS/TvShowsApp_Data/files/family-guy"
-          for season_dir in downloads/*/; do
+          shopt -s nullglob
+          dirs=(downloads/*/)
+          if [ ${#dirs[@]} -eq 0 ]; then
+            echo "No season folders to upload"
+            exit 1
+          fi
+          for season_dir in "${dirs[@]}"; do
             season=$(basename "$season_dir")
             echo "Uploading: $season"
             rclone copy "$season_dir" "$BASE/$season" \
