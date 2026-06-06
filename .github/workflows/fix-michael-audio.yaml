@@ -1,0 +1,60 @@
+name: Fix michael audio.
+
+on:
+  workflow_dispatch:
+
+jobs:
+  convert:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Install FFmpeg
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
+
+      - name: Install rclone
+        run: |
+          curl https://rclone.org/install.sh | sudo bash
+
+      - name: Download video
+        run: |
+          curl -L \
+            "https://nostaligafun.pages.dev/games/games-accualy/APPS/MovieApp_Data/files/movies/michael.mp4" \
+            -o michael.mp4
+
+      - name: Re-encode audio to AAC
+        run: |
+          ffmpeg -y \
+            -i michael.mp4 \
+            -c:v copy \
+            -c:a aac \
+            -b:a 192k \
+            michael_aac.mp4
+
+      - name: Configure rclone
+        run: |
+          mkdir -p ~/.config/rclone
+
+          cat > ~/.config/rclone/rclone.conf <<EOF
+          [r2]
+          type = s3
+          provider = Cloudflare
+          access_key_id = ${{ secrets.R2_ACCESS_KEY }}
+          secret_access_key = ${{ secrets.R2_SECRET_KEY }}
+          endpoint = ${{ secrets.R2_ENDPOINT }}
+          acl = private
+          no_check_bucket = true
+          EOF
+
+      - name: Upload to R2
+        run: |
+          rclone copy \
+            michael_aac.mp4 \
+            r2:nostaligafun-files/games/games-accualy/APPS/MovieApp_Data/files/movies/ \
+            --progress
+
+      - name: Verify upload
+        run: |
+          rclone ls \
+            r2:nostaligafun-files/games/games-accualy/APPS/MovieApp_Data/files/movies/
