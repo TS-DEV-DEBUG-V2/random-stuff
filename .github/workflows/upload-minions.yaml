@@ -6,7 +6,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 350
     env:
-      MAGNET: "/t/Minions (2015) [1080p] [BluRay] [YTS.BZ].torrent"
+      MAGNET: "/assets/Minions (2015) [1080p] [BluRay] [YTS.BZ].torrent"
       OUTPUT_FILENAME: "minions.mp4"
       R2_PATH: "nostaligafun-files/games/games-accualy/APPS/MovieApp_Data/files/movies"
     steps:
