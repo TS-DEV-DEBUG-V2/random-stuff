@@ -1,0 +1,72 @@
+name: upload angry birds movie
+on:
+  workflow_dispatch:
+jobs:
+  copy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+    env:
+      MAGNET: "/t/the-boss-baby-family-business.torrent"
+      OUTPUT_FILENAME: "the-boss-baby-family-business.mp4"
+      R2_PATH: "nostaligafun-files/games/games-accualy/APPS/MovieApp_Data/files/movies"
+    steps:
+      - name: Install rclone and aria2
+        run: |
+          curl https://rclone.org/install.sh | sudo bash
+          sudo apt-get update
+          sudo apt-get install -y aria2
+      - name: Write rclone config
+        env:
+          R2_ACCESS_KEY: ${{ secrets.R2_ACCESS_KEY }}
+          R2_SECRET_KEY: ${{ secrets.R2_SECRET_KEY }}
+          R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
+        run: |
+          mkdir -p ~/.config/rclone
+          cat > ~/.config/rclone/rclone.conf <<EOF
+          [r2]
+          type = s3
+          provider = Cloudflare
+          access_key_id = ${R2_ACCESS_KEY}
+          secret_access_key = ${R2_SECRET_KEY}
+          endpoint = ${R2_ENDPOINT}
+          acl = private
+          EOF
+          chmod 600 ~/.config/rclone/rclone.conf
+      - uses: actions/checkout@v4
+      - name: Download from torrent
+        run: |
+          mkdir -p downloads
+          aria2c \
+            --dir=downloads \
+            --seed-time=0 \
+            --bt-stop-timeout=300 \
+            --max-connection-per-server=16 \
+            --split=16 \
+            --summary-interval=30 \
+            --bt-save-metadata=false \
+            "$GITHUB_WORKSPACE/$MAGNET"
+          echo "Downloaded files:"
+          find downloads -type f -exec ls -lh {} \;
+      - name: Rename mp4 and upload to R2
+        run: |
+          MP4=$(find downloads -type f -iname "*.mp4" ! -iname "*sample*" | head -n1)
+
+          if [ -z "$MP4" ]; then
+            echo "No valid .mp4 file found in download (excluding Sample)"
+            find downloads -type f
+            exit 1
+            fi
+
+          echo "Found mp4: $MP4"
+
+          RENAMED="downloads/$OUTPUT_FILENAME"
+          mv "$MP4" "$RENAMED"
+
+          ls -lh "$RENAMED"
+
+          rclone copyto "$RENAMED" "r2:${R2_PATH}/${OUTPUT_FILENAME}" \
+            --s3-no-check-bucket \
+            --progress \
+            --stats 30s \
+            --retries 999 \
+            --low-level-retries 999
