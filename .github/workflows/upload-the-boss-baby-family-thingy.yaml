@@ -6,7 +6,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 350
     env:
-      MAGNET: "/t/the-boss-baby-family-business.torrent"
+      MAGNET: "/assets/The Boss Baby Family Business (2021) [720p] [BluRay] [YTS.BZ].torrent"
       OUTPUT_FILENAME: "the-boss-baby-family-business.mp4"
       R2_PATH: "nostaligafun-files/games/games-accualy/APPS/MovieApp_Data/files/movies"
     steps:
