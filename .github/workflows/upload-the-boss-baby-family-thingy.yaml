@@ -1,4 +1,4 @@
-name: upload angry birds movie
+name: the boss baby family 
 on:
   workflow_dispatch:
 jobs:
