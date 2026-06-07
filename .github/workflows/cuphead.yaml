@@ -1,0 +1,45 @@
+name: Cuphead to R2
+
+on:
+  workflow_dispatch:
+
+jobs:
+  transfer:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install rclone
+        run: |
+          curl -fsSL https://rclone.org/install.sh | sudo bash
+
+      - name: Configure rclone
+        run: |
+          mkdir -p ~/.config/rclone
+          cat > ~/.config/rclone/rclone.conf <<EOF
+          [r2]
+          type = s3
+          provider = Cloudflare
+          access_key_id = ${{ secrets.R2_ACCESS_KEY }}
+          secret_access_key = ${{ secrets.R2_SECRET_KEY }}
+          endpoint = ${{ secrets.R2_ENDPOINT }}
+          acl = private
+          EOF
+
+      - name: Download files
+        run: |
+          mkdir -p build
+          cd build
+          for f in Cuphead.wasm Cuphead.data Cuphead.framework.js Cuphead.loader.js; do
+            curl -fL --retry 9999 --retry-delay 4 --retry-all-errors \
+              -o "$f" "https://truffled.lol/games/Cuphead/Build/$f"
+            ls -lh "$f"
+          done
+
+      - name: Upload to R2
+        run: |
+          rclone copy build/ r2:nostaligafun-files/games/games-accualy/OTHER/CupheadV1Port_Data/Build/ \
+            --s3-no-check-bucket \
+            --retries 9999 \
+            --low-level-retries 9999 \
+            --retries-sleep 4s \
+            --transfers 1 \
+            --progress
