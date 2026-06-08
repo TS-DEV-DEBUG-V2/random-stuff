@@ -1,0 +1,110 @@
+name: Generate Movie Timelines
+
+on:
+  workflow_dispatch:
+    inputs:
+      filename:
+        description: "Specific file (leave empty to process all missing)"
+        required: false
+      force:
+        description: "Regenerate even if timeline exists"
+        type: boolean
+        default: false
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    steps:
+      - name: Install deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg webp
+          curl https://rclone.org/install.sh | sudo bash
+
+      - name: Configure rclone
+        run: |
+          mkdir -p ~/.config/rclone
+          cat > ~/.config/rclone/rclone.conf <<EOF
+          [r2]
+          type = s3
+          provider = Cloudflare
+          access_key_id = ${{ secrets.R2_ACCESS_KEY }}
+          secret_access_key = ${{ secrets.R2_SECRET_KEY }}
+          endpoint = ${{ secrets.R2_ENDPOINT }}
+          acl = private
+          EOF
+
+      - name: Process
+        env:
+          BUCKET: nostaligafun-files
+          MOVIES_PREFIX: games/games-accualy/APPS/MovieApp_Data/files/movies
+          TIMELINES_PREFIX: games/games-accualy/APPS/MovieApp_Data/files/timelines/movies
+          INPUT_FILE: ${{ inputs.filename }}
+          FORCE: ${{ inputs.force }}
+        run: |
+          set -e
+          mkdir -p work && cd work
+
+          RCLONE_FLAGS="--s3-no-check-bucket --retries 9999 --low-level-retries 9999 --retries-sleep 4s --transfers 1"
+
+          if [ -n "$INPUT_FILE" ]; then
+            FILES="$INPUT_FILE"
+          else
+            FILES=$(rclone lsf "r2:$BUCKET/$MOVIES_PREFIX/" $RCLONE_FLAGS | grep -iE '\.(mp4|mkv|webm|mov|avi)$' || true)
+          fi
+
+          EXISTING=""
+          if [ "$FORCE" != "true" ]; then
+            EXISTING=$(rclone lsf "r2:$BUCKET/$TIMELINES_PREFIX/" $RCLONE_FLAGS 2>/dev/null || true)
+          fi
+
+          echo "$FILES" | while read -r VIDEO; do
+            [ -z "$VIDEO" ] && continue
+            BASE="${VIDEO%.*}"
+
+            if [ "$FORCE" != "true" ] && echo "$EXISTING" | grep -qx "$BASE.vtt"; then
+              echo "skip $BASE"
+              continue
+            fi
+
+            echo "=== $VIDEO ==="
+            rm -f input.* sprite.png sprite.webp sprite.vtt
+            rclone copyto "r2:$BUCKET/$MOVIES_PREFIX/$VIDEO" "input.${VIDEO##*.}" $RCLONE_FLAGS
+
+            DURATION=$(ffprobe -v error -show_entries format=duration -of csv=p=0 "input.${VIDEO##*.}" | cut -d. -f1)
+            [ -z "$DURATION" ] || [ "$DURATION" -lt 1 ] && { echo "bad duration, skip"; continue; }
+
+            INTERVAL=10
+            W=160
+            H=90
+            COUNT=$(( (DURATION + INTERVAL - 1) / INTERVAL ))
+            COLS=$(awk -v c=$COUNT 'BEGIN{r=int(sqrt(c)); if(r*r<c)r++; print r}')
+
+            ffmpeg -hide_banner -loglevel error -y -i "input.${VIDEO##*.}" \
+              -vf "fps=1/$INTERVAL,scale=$W:$H,tile=${COLS}x${COLS}" \
+              -frames:v 1 sprite.png
+
+            cwebp -q 70 sprite.png -o "$BASE.webp"
+
+            {
+              echo "WEBVTT"
+              echo ""
+              for ((i=0; i<COUNT; i++)); do
+                START=$((i * INTERVAL))
+                END=$((START + INTERVAL))
+                [ $END -gt $DURATION ] && END=$DURATION
+                X=$(( (i % COLS) * W ))
+                Y=$(( (i / COLS) * H ))
+                printf '%02d:%02d:%02d.000 --> %02d:%02d:%02d.000\n%s.webp#xywh=%d,%d,%d,%d\n\n' \
+                  $((START/3600)) $((START%3600/60)) $((START%60)) \
+                  $((END/3600)) $((END%3600/60)) $((END%60)) \
+                  "$BASE" $X $Y $W $H
+              done
+            } > "$BASE.vtt"
+
+            rclone copyto "$BASE.webp" "r2:$BUCKET/$TIMELINES_PREFIX/$BASE.webp" $RCLONE_FLAGS
+            rclone copyto "$BASE.vtt"  "r2:$BUCKET/$TIMELINES_PREFIX/$BASE.vtt"  $RCLONE_FLAGS
+
+            rm -f "input.${VIDEO##*.}" sprite.png "$BASE.webp" "$BASE.vtt"
+          done
