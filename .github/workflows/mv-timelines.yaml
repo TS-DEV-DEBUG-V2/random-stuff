@@ -42,6 +42,7 @@ jobs:
           TIMELINES_PREFIX: games/games-accualy/APPS/MovieApp_Data/files/timelines/movies
           INPUT_FILE: ${{ inputs.filename }}
           FORCE: ${{ inputs.force }}
+        shell: bash
         run: |
           set -e
           mkdir -p work && cd work
@@ -49,21 +50,24 @@ jobs:
           RCLONE_FLAGS="--s3-no-check-bucket --retries 9999 --low-level-retries 9999 --retries-sleep 4s --transfers 1"
 
           if [ -n "$INPUT_FILE" ]; then
-            FILES="$INPUT_FILE"
+            echo "$INPUT_FILE" > files.txt
           else
-            FILES=$(rclone lsf "r2:$BUCKET/$MOVIES_PREFIX/" $RCLONE_FLAGS | grep -iE '\.(mp4|mkv|webm|mov|avi)$' || true)
+            rclone lsf "r2:$BUCKET/$MOVIES_PREFIX/" $RCLONE_FLAGS | grep -iE '\.(mp4|mkv|webm|mov|avi)$' > files.txt || true
           fi
 
-          EXISTING=""
           if [ "$FORCE" != "true" ]; then
-            EXISTING=$(rclone lsf "r2:$BUCKET/$TIMELINES_PREFIX/" $RCLONE_FLAGS 2>/dev/null || true)
+            rclone lsf "r2:$BUCKET/$TIMELINES_PREFIX/" $RCLONE_FLAGS 2>/dev/null > existing.txt || true
+          else
+            : > existing.txt
           fi
 
-          echo "$FILES" | while read -r VIDEO; do
+          echo "Found $(wc -l < files.txt) files to consider"
+
+          while IFS= read -r VIDEO <&3; do
             [ -z "$VIDEO" ] && continue
             BASE="${VIDEO%.*}"
 
-            if [ "$FORCE" != "true" ] && echo "$EXISTING" | grep -qx "$BASE.vtt"; then
+            if [ "$FORCE" != "true" ] && grep -qx "$BASE.vtt" existing.txt; then
               echo "skip $BASE"
               continue
             fi
@@ -110,5 +114,4 @@ jobs:
             rclone copyto "$BASE.vtt"  "r2:$BUCKET/$TIMELINES_PREFIX/$BASE.vtt"  $RCLONE_FLAGS
 
             rm -f "input.${VIDEO##*.}" sprite.png "$BASE.webp" "$BASE.vtt"
-          done < /dev/null
-        shell: bash
+          done 3< files.txt
