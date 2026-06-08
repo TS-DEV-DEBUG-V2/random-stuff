@@ -1,4 +1,4 @@
-name: upload shark tale
+name: upload inside out 2
 on:
   workflow_dispatch:
 jobs:
@@ -6,8 +6,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 350
     env:
-      MAGNET: "/t/shark-tale.torrent"
-      OUTPUT_FILENAME: "shark-tale.mp4"
+      MAGNET: "/t/inside-out-2.torrent"
+      OUTPUT_FILENAME: "inside-out-2.mp4"
       R2_PATH: "nostaligafun-files/games/games-accualy/APPS/MovieApp_Data/files/movies"
     steps:
       - name: Install rclone and aria2
