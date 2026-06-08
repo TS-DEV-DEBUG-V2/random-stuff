@@ -1,0 +1,55 @@
+name: fix-backrooms-mp4
+
+on:
+  workflow_dispatch:
+
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    steps:
+      - name: install
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg curl unzip
+          curl https://rclone.org/install.sh | sudo bash
+
+      - name: rclone config
+        run: |
+          mkdir -p ~/.config/rclone
+          cat > ~/.config/rclone/rclone.conf <<EOF
+          [r2]
+          type = s3
+          provider = Cloudflare
+          access_key_id = ${{ secrets.R2_ACCESS_KEY }}
+          secret_access_key = ${{ secrets.R2_SECRET_KEY }}
+          endpoint = ${{ secrets.R2_ENDPOINT }}
+          acl = private
+          EOF
+
+      - name: download
+        run: |
+          curl -L --retry 10 --retry-delay 5 -o broken.mp4 \
+            https://nostaligafun.pages.dev/games/games-accualy/APPS/MovieApp_Data/files/movies/the-backrooms.mp4
+
+      - name: probe
+        run: ffprobe -v error -show_format -show_streams broken.mp4 || true
+
+      - name: remux copy
+        run: |
+          ffmpeg -y -err_detect ignore_err -fflags +genpts+discardcorrupt \
+            -i broken.mp4 -map 0 -c copy -movflags +faststart \
+            -ignore_unknown -avoid_negative_ts make_zero fixed.mp4
+
+      - name: trim trailing corrupt frames
+        run: |
+          DUR=$(ffprobe -v error -show_entries format=duration -of default=nw=1:nk=1 fixed.mp4)
+          NEW=$(awk -v d="$DUR" 'BEGIN{printf "%.3f", d-0.5}')
+          ffmpeg -y -i fixed.mp4 -t $NEW -c copy -movflags +faststart final.mp4
+          ffprobe -v error -show_format final.mp4
+
+      - name: upload to r2
+        run: |
+          rclone copyto final.mp4 \
+            r2:nostaligafun-files/games/games-accualy/APPS/MovieApp_Data/files/movies/the-backrooms.mp4 \
+            --s3-no-check-bucket --retries 9999 --low-level-retries 9999 \
+            --retries-sleep 4s --transfers 1 --progress
