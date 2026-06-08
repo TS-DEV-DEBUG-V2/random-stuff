@@ -69,11 +69,14 @@ jobs:
             fi
 
             echo "=== $VIDEO ==="
-            rm -f input.* sprite.png sprite.webp sprite.vtt
+            rm -f input.* sprite.png "$BASE.webp" "$BASE.vtt"
             rclone copyto "r2:$BUCKET/$MOVIES_PREFIX/$VIDEO" "input.${VIDEO##*.}" $RCLONE_FLAGS
 
             DURATION=$(ffprobe -v error -show_entries format=duration -of csv=p=0 "input.${VIDEO##*.}" | cut -d. -f1)
-            [ -z "$DURATION" ] || [ "$DURATION" -lt 1 ] && { echo "bad duration, skip"; continue; }
+            if [ -z "$DURATION" ] || [ "$DURATION" -lt 1 ]; then
+              echo "bad duration, skip"
+              continue
+            fi
 
             INTERVAL=10
             W=160
@@ -81,11 +84,11 @@ jobs:
             COUNT=$(( (DURATION + INTERVAL - 1) / INTERVAL ))
             COLS=$(awk -v c=$COUNT 'BEGIN{r=int(sqrt(c)); if(r*r<c)r++; print r}')
 
-            ffmpeg -hide_banner -loglevel error -y -i "input.${VIDEO##*.}" \
+            ffmpeg -hide_banner -loglevel error -nostdin -y -i "input.${VIDEO##*.}" \
               -vf "fps=1/$INTERVAL,scale=$W:$H,tile=${COLS}x${COLS}" \
               -frames:v 1 sprite.png
 
-            cwebp -q 70 sprite.png -o "$BASE.webp"
+            cwebp -q 75 sprite.png -o "$BASE.webp"
 
             {
               echo "WEBVTT"
@@ -107,4 +110,5 @@ jobs:
             rclone copyto "$BASE.vtt"  "r2:$BUCKET/$TIMELINES_PREFIX/$BASE.vtt"  $RCLONE_FLAGS
 
             rm -f "input.${VIDEO##*.}" sprite.png "$BASE.webp" "$BASE.vtt"
-          done
+          done < /dev/null
+        shell: bash
