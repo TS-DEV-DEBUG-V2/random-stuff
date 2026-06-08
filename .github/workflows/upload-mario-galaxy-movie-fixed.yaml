@@ -1,4 +1,4 @@
-name: upload Despicable Me 3
+name: mario galaxy movie 
 on:
   workflow_dispatch:
 jobs:
