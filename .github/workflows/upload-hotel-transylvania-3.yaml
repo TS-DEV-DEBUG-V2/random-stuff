@@ -6,7 +6,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 350
     env:
-      MAGNET: "/t/hotel-transylvania-3.torrent"
+      MAGNET: "/t/Hotel Transylvania 3 Summer Vacation (2018) [1080p] [BluRay] [YTS.BZ].torrent"
       OUTPUT_FILENAME: "hotel-transylvania-3.mp4"
       R2_PATH: "nostaligafun-files/games/games-accualy/APPS/MovieApp_Data/files/movies"
       TIMELINES_PATH: "nostaligafun-files/games/games-accualy/APPS/MovieApp_Data/files/timelines/movies"
