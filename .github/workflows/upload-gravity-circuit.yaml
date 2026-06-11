@@ -68,5 +68,5 @@ jobs:
             --transfers 32 \
             --checkers 32 \
             --progress \
-            --s3-no-bucket-check \
+            --s3-no-check-bucket \
             --create-empty-src-dirs
