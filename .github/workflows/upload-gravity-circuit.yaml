@@ -1,4 +1,4 @@
-name: Gravity Circuit Upload
+name: Download GoFile and Upload to R2
 
 on:
   workflow_dispatch:
@@ -8,10 +8,24 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Install tools
+      - name: Checkout gofile-downloader
+        uses: actions/checkout@v4
+        with:
+          repository: ltsdw/gofile-downloader
+          path: gofile-downloader
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install uv
         run: |
-          sudo apt-get update
-          sudo apt-get install -y jq curl wget
+          python -m pip install --upgrade pip
+          pip install uv
+
+      - name: Install rclone
+        run: |
           curl https://rclone.org/install.sh | sudo bash
 
       - name: Write rclone config
@@ -32,27 +46,17 @@ jobs:
           EOF
           chmod 600 ~/.config/rclone/rclone.conf
 
-      - name: Download GoFile content
+      - name: Download GoFile Share
+        env:
+          GF_DOWNLOAD_DIR: ${{ github.workspace }}/download
         run: |
-          mkdir -p download
+          mkdir -p "$GF_DOWNLOAD_DIR"
 
-          CONTENT_ID="LxMlaX"
+          cd gofile-downloader
 
-          curl -s "https://api.gofile.io/contents/${CONTENT_ID}" > response.json
+          uv run gofile-downloader.py "https://gofile.io/d/LxMlaX"
 
-          jq -r '
-            .data.children
-            | to_entries[]
-            | select(.value.type=="file")
-            | .value.link
-          ' response.json > links.txt
-
-          while read -r url; do
-            [ -z "$url" ] && continue
-            wget -c -P download "$url"
-          done < links.txt
-
-      - name: Show downloaded files
+      - name: Show Downloaded Files
         run: |
           find download -type f
 
