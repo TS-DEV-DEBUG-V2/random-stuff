@@ -54,7 +54,7 @@ jobs:
 
           cd gofile-downloader
 
-          uv run gofile-downloader.py "https://gofile.io/d/LxMlaX"
+          uv run gofile-downloader.py "https://gofile.io/d/1hWucz"
 
       - name: Show Downloaded Files
         run: |
