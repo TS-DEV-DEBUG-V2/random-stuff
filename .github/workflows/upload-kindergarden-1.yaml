@@ -1,4 +1,4 @@
-name:  Sync Kindergarden 1 to R2
+name:  Sync Kindergarten 1 to R2
 
 on:
   workflow_dispatch:
@@ -8,10 +8,10 @@ jobs:
     runs-on: ubuntu-latest
     env:
       R2_BUCKET: nostaligafun-files
-      R2_DEST_PATH: games/games-accualy/OTHER/Kindergarden1_Data
+      R2_DEST_PATH: games/games-accualy/OTHER/Kindergarten1_Data
       GH_REPO: genizy/web-port
       GH_REF: main
-      GH_PATH: 1
+      GH_PATH: kindergarten/1
     steps:
       - name: Download folder from GitHub
         run: |
