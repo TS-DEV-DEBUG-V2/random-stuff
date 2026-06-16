@@ -1,0 +1,68 @@
+name:  Sync Kindergarden 1 to R2
+
+on:
+  workflow_dispatch:
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    env:
+      R2_BUCKET: nostaligafun-files
+      R2_DEST_PATH: games/games-accualy/OTHER/Kindergarden1_Data
+      GH_REPO: genizy/web-port
+      GH_REF: main
+      GH_PATH: 1
+    steps:
+      - name: Download folder from GitHub
+        run: |
+          set -euo pipefail
+          mkdir -p download
+          fetch_dir() {
+            local path="$1"
+            local out="$2"
+            mkdir -p "$out"
+            local api="https://api.github.com/repos/$GH_REPO/contents/$path?ref=$GH_REF"
+            local json
+            json=$(curl -fsSL -H "Accept: application/vnd.github+json" -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" "$api")
+            local count
+            count=$(echo "$json" | jq 'length')
+            for i in $(seq 0 $((count - 1))); do
+              local type name dl sub
+              type=$(echo "$json" | jq -r ".[$i].type")
+              name=$(echo "$json" | jq -r ".[$i].name")
+              if [ "$type" = "file" ]; then
+                dl=$(echo "$json" | jq -r ".[$i].download_url")
+                curl -fsSL -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" "$dl" -o "$out/$name"
+              elif [ "$type" = "dir" ]; then
+                sub=$(echo "$json" | jq -r ".[$i].path")
+                fetch_dir "$sub" "$out/$name"
+              fi
+            done
+          }
+          fetch_dir "$GH_PATH" "download"
+
+      - name: Install rclone
+        run: curl https://rclone.org/install.sh | sudo bash
+
+      - name: Configure rclone
+        run: |
+          mkdir -p ~/.config/rclone
+          cat > ~/.config/rclone/rclone.conf <<EOF
+          [r2]
+          type = s3
+          provider = Cloudflare
+          access_key_id = ${{ secrets.R2_ACCESS_KEY }}
+          secret_access_key = ${{ secrets.R2_SECRET_KEY }}
+          endpoint = ${{ secrets.R2_ENDPOINT }}
+          acl = private
+          region = auto
+          EOF
+
+      - name: Upload to R2
+        run: |
+          rclone copy download r2:$R2_BUCKET/$R2_DEST_PATH \
+            --retries 9999 \
+            --low-level-retries 100 \
+            --s3-no-check-bucket \
+            --transfers 1 \
+            --progress
