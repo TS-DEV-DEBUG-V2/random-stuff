@@ -1,4 +1,4 @@
-name:  Sync Kindergarten 2 to R2
+name:  Sync Tattletail to R2
 
 on:
   workflow_dispatch:
