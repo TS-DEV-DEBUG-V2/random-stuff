@@ -1,0 +1,41 @@
+name: Sync MiSide to R2
+
+on:
+  workflow_dispatch:
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    env:
+      R2_BUCKET: nostaligafun-files
+      R2_DEST_PATH: games/games-accualy/OTHER/MiSide_Data
+    steps:
+      - name: Clone repo
+        run: git clone --depth=1 https://github.com/woahhcrackers/MiSideWeb.git repo
+
+      - name: Install rclone
+        run: curl https://rclone.org/install.sh | sudo bash
+
+      - name: Configure rclone
+        run: |
+          mkdir -p ~/.config/rclone
+          cat > ~/.config/rclone/rclone.conf <<EOF
+          [r2]
+          type = s3
+          provider = Cloudflare
+          access_key_id = ${{ secrets.R2_ACCESS_KEY }}
+          secret_access_key = ${{ secrets.R2_SECRET_KEY }}
+          endpoint = ${{ secrets.R2_ENDPOINT }}
+          acl = private
+          region = auto
+          EOF
+
+      - name: Upload to R2
+        run: |
+          rclone copy repo r2:$R2_BUCKET/$R2_DEST_PATH \
+            --exclude '.git/**' \
+            --retries 9999 \
+            --low-level-retries 100 \
+            --s3-no-check-bucket \
+            --transfers 1 \
+            --progress
