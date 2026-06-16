@@ -8,7 +8,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       R2_BUCKET: nostaligafun-files
-      R2_DEST_PATH: games/games-accualy/ANDROID/Kindergarten3_Data
+      R2_DEST_PATH: games/games-accualy/OTHER/Kindergarten3_Data
     steps:
       - name: Clone repo
         run: git clone --depth=1 https://github.com/slqntdevss/Kindergarten3Port.git repo
