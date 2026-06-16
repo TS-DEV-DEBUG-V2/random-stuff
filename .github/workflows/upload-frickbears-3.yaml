@@ -8,7 +8,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       R2_BUCKET: nostaligafun-files
-      R2_DEST_PATH: games/games-accualy/OTHER/iveNightsAtFrickbears3_Data
+      R2_DEST_PATH: games/games-accualy/OTHER/FiveNightsAtFrickbears3_Data
     steps:
       - name: Clone repo
         run: git clone --depth=1 https://github.com/Reeyuki/frickbears3port.git repo
