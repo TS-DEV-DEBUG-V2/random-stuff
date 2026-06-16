@@ -33,6 +33,6 @@ jobs:
             --s3-no-check-bucket \
             --retries 999 \
             --low-level-retries 999 \
-            --transfers 1 \
+            --transfers 15 \
             --fast-list \
             -v
