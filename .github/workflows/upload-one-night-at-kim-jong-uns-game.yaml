@@ -1,0 +1,38 @@
+name: Sync One Night At Kim Jong Uns to R2
+
+on:
+  workflow_dispatch:
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    env:
+      R2_BUCKET: nostaligafun-files
+      R2_DEST_PATH: games/games-accualy/OTHER/OneNightAtKimJongUns_Data
+    steps:
+      - name: Clone repo
+        run: |
+          git clone https://github.com/usheje883-maker/One-Night-At-Kim-Jong-Un-s-Webport.git
+          cd One-Night-At-Kim-Jong-Un-s-Webport
+          pwd
+          ls -la
+
+      - name: Install rclone
+        run: curl https://rclone.org/install.sh | sudo bash
+
+      - name: Configure rclone and upload to R2
+        env:
+          RCLONE_CONFIG_R2_TYPE: s3
+          RCLONE_CONFIG_R2_PROVIDER: Cloudflare
+          RCLONE_CONFIG_R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY }}
+          RCLONE_CONFIG_R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_KEY }}
+          RCLONE_CONFIG_R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
+        run: |
+          cd One-Night-At-Kim-Jong-Un-s-Webport
+          rclone copy . r2:${{ env.R2_BUCKET }}/${{ env.R2_DEST_PATH }} \
+            --s3-no-check-bucket \
+            --retries 999 \
+            --low-level-retries 999 \
+            --transfers 1 \
+            --fast-list \
+            -v
