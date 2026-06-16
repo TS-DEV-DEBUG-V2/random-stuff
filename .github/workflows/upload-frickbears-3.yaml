@@ -37,5 +37,5 @@ jobs:
             --retries 9999 \
             --low-level-retries 100 \
             --s3-no-check-bucket \
-            --transfers 1 \
+            --transfers 30 \
             --progress
