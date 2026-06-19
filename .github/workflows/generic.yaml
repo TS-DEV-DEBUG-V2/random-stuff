@@ -1,4 +1,4 @@
-name: A downlaod and Upload to R2
+name: A Download and Upload to R2
 
 on:
   workflow_dispatch:
@@ -15,14 +15,21 @@ on:
 jobs:
   download-upload:
     runs-on: ubuntu-latest
+    timeout-minutes: 350
     steps:
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/lib/android /usr/local/.ghcup /opt/hostedtoolcache
+          df -h
+
       - name: Download file
         run: |
+          set -euo pipefail
           curl -L --fail --retry 5 --retry-delay 10 -o "${{ inputs.upload_name }}" "${{ inputs.file_url }}"
+          ls -lh "${{ inputs.upload_name }}"
 
       - name: Install rclone
-        run: |
-          curl https://rclone.org/install.sh | sudo bash
+        run: curl https://rclone.org/install.sh | sudo bash
 
       - name: Configure rclone
         run: |
@@ -31,15 +38,18 @@ jobs:
           [r2]
           type = s3
           provider = Cloudflare
-          access_key_id = ${{ secrets.R2_ACCESS_KEY_ID }}
-          secret_access_key = ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          access_key_id = ${{ secrets.R2_ACCESS_KEY }}
+          secret_access_key = ${{ secrets.R2_SECRET_KEY }}
           endpoint = ${{ secrets.R2_ENDPOINT }}
+          acl = private
           EOF
+          chmod 600 ~/.config/rclone/rclone.conf
 
       - name: Upload to R2
         run: |
           rclone copyto "${{ inputs.upload_name }}" "r2:nostaligafun-files/games/downloadable/${{ inputs.upload_name }}" \
             --s3-no-check-bucket \
+            --s3-chunk-size 100M \
             --retries 10 \
             --low-level-retries 10 \
             --progress
