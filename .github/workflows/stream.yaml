@@ -1,0 +1,47 @@
+name: A Download and Upload to R2 (Stream)
+
+on:
+  workflow_dispatch:
+    inputs:
+      file_url:
+        description: 'URL of the file to download'
+        required: true
+        type: string
+      upload_name:
+        description: 'File name for upload (e.g. Something.zip)'
+        required: true
+        type: string
+
+jobs:
+  stream-upload:
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+    steps:
+      - name: Install rclone
+        run: curl https://rclone.org/install.sh | sudo bash
+
+      - name: Configure rclone
+        run: |
+          mkdir -p ~/.config/rclone
+          cat > ~/.config/rclone/rclone.conf <<EOF
+          [r2]
+          type = s3
+          provider = Cloudflare
+          access_key_id = ${{ secrets.R2_ACCESS_KEY }}
+          secret_access_key = ${{ secrets.R2_SECRET_KEY }}
+          endpoint = ${{ secrets.R2_ENDPOINT }}
+          acl = private
+          EOF
+          chmod 600 ~/.config/rclone/rclone.conf
+
+      - name: Stream download to R2
+        run: |
+          set -euo pipefail
+          curl -L --fail --retry 5 --retry-delay 10 "${{ inputs.file_url }}" | \
+          rclone rcat "r2:nostaligafun-files/games/downloadable/${{ inputs.upload_name }}" \
+            --s3-no-check-bucket \
+            --s3-upload-cutoff 0 \
+            --s3-chunk-size 100M \
+            --retries 999 \
+            --low-level-retries 999 \
+            --stats 30s
