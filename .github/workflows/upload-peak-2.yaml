@@ -10,7 +10,7 @@ jobs:
       - name: Install tools
         run: |
           sudo apt-get update
-          sudo apt-get install -y unrar aria2 rclone
+          sudo apt-get install -y unrar rclone
 
       - name: Configure rclone
         run: |
@@ -25,15 +25,20 @@ jobs:
           acl = private
           EOF
 
+      - name: Get gofile-downloader
+        run: |
+          git clone https://github.com/ltsdw/gofile-downloader.git
+          pip install requests
+
       - name: Download from gofile
-        run: python3 gofile_dl.py eqzFFE downloads
+        run: |
+          cd gofile-downloader
+          python3 gofile-downloader.py "https://gofile.io/d/eqzFFE"
 
       - name: Extract
         run: |
           mkdir -p extracted
-          for f in downloads/*.rar; do
-            unrar x -o+ "$f" extracted/
-          done
+          find gofile-downloader -name '*.rar' -exec unrar x -o+ {} extracted/ \;
 
       - name: Upload to R2
         run: |
