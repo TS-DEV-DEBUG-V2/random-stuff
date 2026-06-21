@@ -45,4 +45,8 @@ jobs:
         run: |
           rclone copy extracted/ "r2:nostaligafun-files/games/games-accualy/OTHER/Peak_Data/" \
             --transfers 1 --retries 999 --low-level-retries 999 \
-            --s3-no-check-bucket -v
+            --s3-no-check-bucket \
+            --multi-thread-streams 0 \
+            --s3-upload-cutoff 5G \
+            --s3-chunk-size 100M \
+            -v
