@@ -10,7 +10,7 @@ jobs:
       - name: Install tools
         run: |
           sudo apt-get update
-          sudo apt-get install -y unrar aria2 rclone
+          sudo apt-get install -y unrar aria2 rclone jq
 
       - name: Configure rclone
         run: |
@@ -25,15 +25,32 @@ jobs:
           acl = private
           EOF
 
-      - name: Download RAR
+      - name: Download from gofile
         run: |
-          aria2c -x16 -s16 -o is-ts-peak.rar \
-            "https://store-na-phx-5.gofile.io/download/web/6f01d55a-c73b-4d08-827b-f1e1a2b8080d/is-ts-peak.rar"
+          CONTENT_ID="eqzFFE"
+
+          TOKEN=$(curl -s -X POST https://api.gofile.io/accounts | jq -r '.data.token')
+          echo "::add-mask::$TOKEN"
+
+          WT=$(curl -s "https://gofile.io/dist/js/global.js" | grep -oP 'appdata\.wt\s*=\s*"\K[^"]+')
+
+          RESP=$(curl -s -H "Authorization: Bearer $TOKEN" \
+            "https://api.gofile.io/contents/${CONTENT_ID}?wt=${WT}")
+
+          mkdir -p downloads
+          echo "$RESP" | jq -r '.data.children[] | .link' | while read -r url; do
+            [ -z "$url" ] && continue
+            aria2c -x16 -s16 -d downloads \
+              --header="Cookie: accountToken=$TOKEN" \
+              "$url"
+          done
 
       - name: Extract
         run: |
           mkdir -p extracted
-          unrar x -o+ is-ts-peak.rar extracted/
+          for f in downloads/*.rar; do
+            unrar x -o+ "$f" extracted/
+          done
 
       - name: Upload to R2
         run: |
