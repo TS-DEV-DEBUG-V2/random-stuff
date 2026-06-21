@@ -19,11 +19,12 @@ jobs:
           [r2]
           type = s3
           provider = Cloudflare
-          access_key_id = ${{ secrets.R2_ACCESS_KEY_ID }}
-          secret_access_key = ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          access_key_id = ${{ secrets.R2_ACCESS_KEY }}
+          secret_access_key = ${{ secrets.R2_SECRET_KEY }}
           endpoint = ${{ secrets.R2_ENDPOINT }}
           acl = private
           EOF
+          chmod 600 ~/.config/rclone/rclone.conf
 
       - name: Get gofile-downloader
         run: |
@@ -43,5 +44,5 @@ jobs:
       - name: Upload to R2
         run: |
           rclone copy extracted/ "r2:nostaligafun-files/games/games-accualy/OTHER/Peak_Data/" \
-            --transfers 8 --checkers 16 --progress \
-            --s3-no-check-bucket
+            --transfers 1 --retries 999 --low-level-retries 999 \
+            --s3-no-check-bucket -v
