@@ -43,4 +43,5 @@ jobs:
       - name: Upload to R2
         run: |
           rclone copy extracted/ "r2:nostaligafun-files/games/games-accualy/OTHER/Peak_Data/" \
-            --transfers 8 --checkers 16 --fast-list --progress
+            --transfers 8 --checkers 16 --progress \
+            --s3-no-check-bucket
