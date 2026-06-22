@@ -8,10 +8,10 @@ jobs:
     runs-on: ubuntu-latest
     env:
       R2_BUCKET: nostaligafun-files
-      R2_DEST_PATH: games/games-accualy/ANDROID/Granny_Data
+      R2_DEST_PATH: games/games-accualy/ANDROID/GdFull_Data
     steps:
       - name: Clone repo
-        run: git clone --depth=1 https://github.com/web-ports/granny.git repo
+        run: git clone --depth=1 https://github.com/web-dashers/web-dashers.github.io.git repo
 
       - name: Install rclone
         run: curl https://rclone.org/install.sh | sudo bash
