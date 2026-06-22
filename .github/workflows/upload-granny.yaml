@@ -1,4 +1,4 @@
-name: Sync Granny to R2
+name: A sync geometry dash to R2
 
 on:
   workflow_dispatch:
