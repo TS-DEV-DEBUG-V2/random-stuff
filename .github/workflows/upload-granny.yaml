@@ -1,4 +1,4 @@
-name: A gta 3 to R2
+name: A PVZ to R2
 
 on:
   workflow_dispatch:
@@ -8,10 +8,10 @@ jobs:
     runs-on: ubuntu-latest
     env:
       R2_BUCKET: nostaligafun-files
-      R2_DEST_PATH: games/games-accualy/PS2/GTAIII_Data
+      R2_DEST_PATH: games/games-accualy/ANDROID/PlantsVsZombies_Data
     steps:
       - name: Clone repo
-        run: git clone --depth=1 https://github.com/larpinguser/HelloWorldScriptBasicFunctionCSharpIsCool.git repo
+        run: git clone --depth=1 https://github.com/web-ports/pvz.git repo
 
       - name: Install rclone
         run: curl https://rclone.org/install.sh | sudo bash
