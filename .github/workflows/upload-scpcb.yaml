@@ -1,0 +1,47 @@
+name: SCPCB Assets to R2
+
+on:
+  workflow_dispatch:
+
+jobs:
+  transfer:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install rclone
+        run: |
+          curl https://rclone.org/install.sh | sudo bash
+
+      - name: Configure rclone
+        run: |
+          mkdir -p ~/.config/rclone
+          cat > ~/.config/rclone/rclone.conf << EOF
+          [r2]
+          type = s3
+          provider = Cloudflare
+          access_key_id = ${{ secrets.R2_ACCESS_KEY }}
+          secret_access_key = ${{ secrets.R2_SECRET_KEY }}
+          endpoint = ${{ secrets.R2_ENDPOINT }}
+          acl = private
+          EOF
+
+      - name: Download assets
+        run: |
+          mkdir -p scpcb_assets
+          BASE_URL="https://q8j-dev.github.io/scpcb-web-port"
+          for i in $(seq 0 12); do
+            NUM=$(printf "%03d" "$((10#$i))")
+            FILE="assets.data.${NUM}"
+            echo "Downloading ${FILE}"
+            curl -fL --retry 10 --retry-delay 5 -o "scpcb_assets/${FILE}" "${BASE_URL}/${FILE}"
+          done
+
+      - name: Upload to R2
+        run: |
+          rclone copy scpcb_assets r2:nostaligafun-files/games/games-accualy/OTHER/SCPCB_Data/ \
+            --progress \
+            --retries 9999 \
+            --retries-sleep 5s \
+            --s3-no-check-bucket \
+            --low-level-retries 9999 \
+            --transfers 8 \
+            --checkers 8
