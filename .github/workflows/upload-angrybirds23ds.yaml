@@ -10,8 +10,8 @@ jobs:
     env:
       R2_BUCKET: nostaligafun-files
       R2_DEST_PATH: random
-      SRC_URL: https://nostaligafun.pages.dev/games/games-accualy/APPS/MovieApp_Data/files/movies/the-angry-birds-movie-2.mp4
-      FILE_BASE: the-angry-birds-movie-2
+      SRC_URL: https://nostaligafun.pages.dev/games/games-accualy/APPS/MovieApp_Data/files/movies/the-emoji-movie.mp4
+      FILE_BASE: the-emoji-movie
 
     steps:
       - name: Install tools
