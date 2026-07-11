@@ -1,0 +1,47 @@
+name: A angry birds movie 2 transcode to r2
+
+on:
+  workflow_dispatch:
+
+jobs:
+  transcode:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    env:
+      R2_BUCKET: nostaligafun-files
+      R2_DEST_PATH: random
+      SRC_URL: https://nostaligafun.pages.dev/games/games-accualy/APPS/MovieApp_Data/files/movies/the-angry-birds-movie-2.mp4
+      FILE_BASE: the-angry-birds-movie-2
+
+    steps:
+      - name: Install tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
+          curl https://rclone.org/install.sh | sudo bash
+
+      - name: Download source mp4
+        run: |
+          curl -L -o "${FILE_BASE}.mp4" "$SRC_URL"
+          ls -la
+
+      - name: Transcode to mkv
+        run: |
+          ffmpeg -i "${FILE_BASE}.mp4" -c:a libvorbis -c:v mpeg4 -s 400x240 -q:v 8 "${FILE_BASE}.mkv"
+          ls -la
+
+      - name: Configure rclone and upload to R2
+        env:
+          RCLONE_CONFIG_R2_TYPE: s3
+          RCLONE_CONFIG_R2_PROVIDER: Cloudflare
+          RCLONE_CONFIG_R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY }}
+          RCLONE_CONFIG_R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_KEY }}
+          RCLONE_CONFIG_R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
+        run: |
+          rclone copy "${FILE_BASE}.mkv" r2:${R2_BUCKET}/${R2_DEST_PATH} \
+            --s3-no-check-bucket \
+            --retries 9999 \
+            --low-level-retries 999 \
+            --retries-sleep 5s \
+            --transfers 2 \
+            --progress
