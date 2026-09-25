@@ -1,4 +1,4 @@
-name: Sync TABS to R2
+name: Sync PEAK to R2
 
 on:
 
@@ -14,13 +14,13 @@ jobs:
 
       R2_BUCKET: nostaligafun-files
 
-      R2_DEST_PATH: games/games-accualy/OTHER/TotallyAccurateBattleSimulatorPort2/
+      R2_DEST_PATH: games/games-accualy/OTHER/Peak_Data
 
     steps:
 
       - name: Clone repo
 
-        run: git clone --depth=1 https://github.com/web-ports/tabs.git repo
+        run: git clone --depth=1 https://github.com/wasmdotrip/Peak-Port.git repo
 
       - name: Install rclone
 
