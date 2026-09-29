@@ -1,0 +1,56 @@
+name: A Upload KSP to R2
+
+on:
+  workflow_dispatch:
+
+jobs:
+  upload:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    env:
+      ZIP_URL: https://cloud.ishotupa.school/ksp.zip
+      DEST: r2:nostaligafun-files/games/games-accualy/OTHER/KSP_Data/
+      RCLONE_CONFIG_R2_TYPE: s3
+      RCLONE_CONFIG_R2_PROVIDER: Cloudflare
+      RCLONE_CONFIG_R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+      RCLONE_CONFIG_R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+      RCLONE_CONFIG_R2_ENDPOINT: https://${{ secrets.R2_ACCOUNT_ID }}.r2.cloudflarestorage.com
+      RCLONE_CONFIG_R2_ACL: private
+      RCLONE_CONFIG_R2_NO_CHECK_BUCKET: "true"
+
+    steps:
+      - name: Install rclone
+        run: curl -fsSL https://rclone.org/install.sh | sudo bash
+
+      - name: Download
+        run: |
+          curl -fL --retry 5 --retry-delay 5 --retry-all-errors -o ksp.zip "$ZIP_URL"
+          ls -lh ksp.zip
+
+      - name: Unzip
+        run: |
+          mkdir -p extracted
+          unzip -q ksp.zip -d extracted
+          rm -f ksp.zip
+          SRC=extracted
+          if [ "$(find extracted -mindepth 1 -maxdepth 1 | wc -l)" -eq 1 ] && [ -d "$(find extracted -mindepth 1 -maxdepth 1)" ]; then
+            SRC="$(find extracted -mindepth 1 -maxdepth 1)"
+          fi
+          echo "SRC=$SRC" >> "$GITHUB_ENV"
+          echo "Uploading from: $SRC"
+          du -sh "$SRC"
+          find "$SRC" -type f | wc -l
+
+      - name: Upload to R2
+        run: |
+          rclone copy "$SRC" "$DEST" \
+            --transfers 15 \
+            --checkers 32 \
+            --s3-upload-concurrency 8 \
+            --s3-chunk-size 64M \
+            --fast-list \
+            --retries 5 \
+            --low-level-retries 20 \
+            --stats 15s \
+            --stats-one-line \
+            -v
