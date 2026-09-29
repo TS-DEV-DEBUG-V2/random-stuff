@@ -1,0 +1,74 @@
+name: A Upload Lethal Company to R2
+
+on:
+  workflow_dispatch:
+
+jobs:
+  upload:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    env:
+      SRC: lethal/build
+      DEST: r2:nostaligafun-files/games/games-accualy/OTHER/LethalCompany_Data/
+      RCLONE_CONFIG_R2_TYPE: s3
+      RCLONE_CONFIG_R2_PROVIDER: Cloudflare
+      RCLONE_CONFIG_R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY }}
+      RCLONE_CONFIG_R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_KEY }}
+      RCLONE_CONFIG_R2_ACL: private
+      RCLONE_CONFIG_R2_NO_CHECK_BUCKET: "true"
+
+    steps:
+      - name: Check secrets
+        env:
+          E: ${{ secrets.R2_ENDPOINT }}
+          K: ${{ secrets.R2_ACCESS_KEY }}
+          S: ${{ secrets.R2_SECRET_KEY }}
+        run: |
+          missing=0
+          [ -z "$E" ] && echo "::error::R2_ENDPOINT is empty" && missing=1
+          [ -z "$K" ] && echo "::error::R2_ACCESS_KEY is empty" && missing=1
+          [ -z "$S" ] && echo "::error::R2_SECRET_KEY is empty" && missing=1
+          [ $missing -ne 0 ] && exit 1
+          host="${E#https://}"
+          host="${host#http://}"
+          host="${host%%/*}"
+          echo "RCLONE_CONFIG_R2_ENDPOINT=https://$host" >> "$GITHUB_ENV"
+
+      - name: Checkout build folder
+        uses: actions/checkout@v4
+        with:
+          repository: larpinguser/lethal
+          ref: main
+          path: lethal
+          sparse-checkout: build
+          sparse-checkout-cone-mode: true
+          lfs: false
+
+      - name: Pull LFS files
+        working-directory: lethal
+        run: |
+          if git lfs ls-files -I "build/**" | grep -q .; then
+            git lfs pull --include "build/**"
+          fi
+
+      - name: Show contents
+        run: |
+          du -sh "$SRC"
+          find "$SRC" -type f | wc -l
+
+      - name: Install rclone
+        run: curl -fsSL https://rclone.org/install.sh | sudo bash
+
+      - name: Upload to R2
+        run: |
+          rclone copy "$SRC" "$DEST" \
+            --transfers 15 \
+            --checkers 32 \
+            --s3-upload-concurrency 8 \
+            --s3-chunk-size 64M \
+            --fast-list \
+            --retries 5 \
+            --low-level-retries 20 \
+            --stats 15s \
+            --stats-one-line \
+            -v
