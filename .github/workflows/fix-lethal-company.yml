@@ -1,0 +1,85 @@
+name: A Merge Lethal Company Build Parts
+
+on:
+  workflow_dispatch:
+
+jobs:
+  merge:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    env:
+      REMOTE: r2:nostaligafun-files/games/games-accualy/OTHER/LethalCompany_Data/Build
+      RCLONE_CONFIG_R2_TYPE: s3
+      RCLONE_CONFIG_R2_PROVIDER: Cloudflare
+      RCLONE_CONFIG_R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY }}
+      RCLONE_CONFIG_R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_KEY }}
+      RCLONE_CONFIG_R2_ACL: private
+      RCLONE_CONFIG_R2_NO_CHECK_BUCKET: "true"
+
+    steps:
+      - name: Check secrets
+        env:
+          E: ${{ secrets.R2_ENDPOINT }}
+          K: ${{ secrets.R2_ACCESS_KEY }}
+          S: ${{ secrets.R2_SECRET_KEY }}
+        run: |
+          missing=0
+          [ -z "$E" ] && echo "::error::R2_ENDPOINT is empty" && missing=1
+          [ -z "$K" ] && echo "::error::R2_ACCESS_KEY is empty" && missing=1
+          [ -z "$S" ] && echo "::error::R2_SECRET_KEY is empty" && missing=1
+          [ $missing -ne 0 ] && exit 1
+          host="${E#https://}"
+          host="${host#http://}"
+          host="${host%%/*}"
+          echo "RCLONE_CONFIG_R2_ENDPOINT=https://$host" >> "$GITHUB_ENV"
+
+      - name: Install rclone
+        run: curl -fsSL https://rclone.org/install.sh | sudo bash
+
+      - name: Download parts
+        run: |
+          mkdir -p parts
+          rclone copy "$REMOTE" parts \
+            --include "build.data.part*" \
+            --include "build.wasm.part*" \
+            --transfers 15 \
+            --checkers 32 \
+            --multi-thread-streams 8 \
+            --fast-list \
+            --retries 5 \
+            --low-level-retries 20 \
+            --stats 15s \
+            --stats-one-line \
+            -v
+          ls -lh parts
+
+      - name: Merge parts
+        working-directory: parts
+        run: |
+          data_parts=$(ls build.data.part* | sort -V)
+          wasm_parts=$(ls build.wasm.part* | sort -V)
+          data_count=$(echo "$data_parts" | wc -l)
+          wasm_count=$(echo "$wasm_parts" | wc -l)
+          echo "Data parts ($data_count):"
+          echo "$data_parts"
+          echo "Wasm parts ($wasm_count):"
+          echo "$wasm_parts"
+          [ "$data_count" -ne 18 ] && echo "::error::Expected 18 data parts, found $data_count" && exit 1
+          [ "$wasm_count" -ne 5 ] && echo "::error::Expected 5 wasm parts, found $wasm_count" && exit 1
+          mkdir -p ../merged
+          cat $data_parts > ../merged/build.data
+          cat $wasm_parts > ../merged/build.wasm
+          ls -lh ../merged
+          head -c 4 ../merged/build.wasm | od -An -tx1
+
+      - name: Upload merged files
+        run: |
+          rclone copy merged "$REMOTE" \
+            --transfers 2 \
+            --s3-upload-concurrency 15 \
+            --s3-chunk-size 64M \
+            --retries 5 \
+            --low-level-retries 20 \
+            --stats 15s \
+            --stats-one-line \
+            -v
