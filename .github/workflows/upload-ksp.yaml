@@ -19,6 +19,18 @@ jobs:
       RCLONE_CONFIG_R2_NO_CHECK_BUCKET: "true"
 
     steps:
+      - name: Check secrets
+        env:
+          A: ${{ secrets.R2_ACCOUNT_ID }}
+          K: ${{ secrets.R2_ACCESS_KEY_ID }}
+          S: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+        run: |
+          missing=0
+          [ -z "$A" ] && echo "::error::R2_ACCOUNT_ID is empty" && missing=1
+          [ -z "$K" ] && echo "::error::R2_ACCESS_KEY_ID is empty" && missing=1
+          [ -z "$S" ] && echo "::error::R2_SECRET_ACCESS_KEY is empty" && missing=1
+          exit $missing
+
       - name: Install rclone
         run: curl -fsSL https://rclone.org/install.sh | sudo bash
 
