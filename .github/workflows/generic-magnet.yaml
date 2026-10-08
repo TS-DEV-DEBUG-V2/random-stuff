@@ -1,0 +1,64 @@
+name: magnet-to-r2
+
+on:
+  workflow_dispatch:
+    inputs:
+      magnet:
+        description: Magnet link
+        required: true
+        type: string
+      name:
+        description: Output name without .zip
+        required: true
+        default: THENAME
+        type: string
+
+jobs:
+  transfer:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    env:
+      MAGNET: ${{ inputs.magnet }}
+      NAME: ${{ inputs.name }}
+      RCLONE_CONFIG_R2_TYPE: s3
+      RCLONE_CONFIG_R2_PROVIDER: Cloudflare
+      RCLONE_CONFIG_R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+      RCLONE_CONFIG_R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+      RCLONE_CONFIG_R2_ENDPOINT: https://${{ secrets.R2_ACCOUNT_ID }}.r2.cloudflarestorage.com
+      RCLONE_CONFIG_R2_REGION: auto
+    steps:
+      - name: Install tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y aria2
+          curl -fsSL https://rclone.org/install.sh | sudo bash
+
+      - name: Download
+        run: |
+          mkdir -p dl
+          aria2c \
+            --dir=dl \
+            --seed-time=0 \
+            --bt-stop-timeout=900 \
+            --max-connection-per-server=16 \
+            --bt-max-peers=200 \
+            --enable-dht=true \
+            --file-allocation=none \
+            --summary-interval=30 \
+            --console-log-level=warn \
+            "$MAGNET"
+
+      - name: Upload
+        run: |
+          FILE="$(find dl -type f -iname '*.zip' -printf '%s\t%p\n' | sort -nr | head -n 1 | cut -f2-)"
+          if [ -z "$FILE" ]; then
+            echo "no zip found"
+            ls -laR dl
+            exit 1
+          fi
+          rclone copyto "$FILE" "r2:nostaligafun-files/games/randoms/${NAME}.zip" \
+            --s3-no-check-bucket \
+            --s3-upload-concurrency 8 \
+            --s3-chunk-size 64M \
+            --progress \
+            --stats 30s
