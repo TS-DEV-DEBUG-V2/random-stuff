@@ -1,4 +1,4 @@
-name: magnet-to-r2
+name: A magnet-to-r2
 
 on:
   workflow_dispatch:
