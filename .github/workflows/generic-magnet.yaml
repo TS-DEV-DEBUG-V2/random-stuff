@@ -7,11 +7,6 @@ on:
         description: Magnet link
         required: true
         type: string
-      name:
-        description: Output name without .zip
-        required: true
-        default: THENAME
-        type: string
 
 jobs:
   transfer:
@@ -19,7 +14,6 @@ jobs:
     timeout-minutes: 360
     env:
       MAGNET: ${{ inputs.magnet }}
-      NAME: ${{ inputs.name }}
       RCLONE_CONFIG_R2_TYPE: s3
       RCLONE_CONFIG_R2_PROVIDER: Cloudflare
       RCLONE_CONFIG_R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY }}
@@ -30,7 +24,7 @@ jobs:
       - name: Install tools
         run: |
           sudo apt-get update
-          sudo apt-get install -y aria2
+          sudo apt-get install -y aria2 unzip
           curl -fsSL https://rclone.org/install.sh | sudo bash
 
       - name: Download
@@ -48,7 +42,7 @@ jobs:
             --console-log-level=warn \
             "$MAGNET"
 
-      - name: Upload
+      - name: Extract
         run: |
           FILE="$(find dl -type f -iname '*.zip' -printf '%s\t%p\n' | sort -nr | head -n 1 | cut -f2-)"
           if [ -z "$FILE" ]; then
@@ -56,9 +50,18 @@ jobs:
             ls -laR dl
             exit 1
           fi
-          NAME="${NAME%.zip}"
-          rclone copyto "$FILE" "r2:nostaligafun-files/games/randoms/${NAME}.zip" \
+          sudo mkdir -p /WORKFILES
+          sudo chown "$USER" /WORKFILES
+          unzip -q "$FILE" -d /WORKFILES
+          rm -rf dl
+          df -h /
+
+      - name: Upload
+        run: |
+          rclone copy /WORKFILES "r2:nostaligafun-files/games/games-accualy/OTHER/WORKSTUFF_Data/" \
             --s3-no-check-bucket \
+            --transfers 16 \
+            --checkers 16 \
             --s3-upload-concurrency 8 \
             --s3-chunk-size 64M \
             --progress \
