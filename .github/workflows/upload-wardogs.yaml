@@ -1,4 +1,4 @@
-name: A NWOMD
+name: A upload la grande 
 on:
   workflow_dispatch:
 jobs:
@@ -6,8 +6,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 350
     env:
-      MAGNET: "/assets/NWMD.torrent"
-      OUTPUT_FILENAME: "not-without-my-daughter.mp4"
+      MAGNET: "/assets/la-grande-vadrouille.torrent"
+      SUBTITLES: "/assets/la-grande-vadrouille.srt"
+      OUTPUT_FILENAME: "la-grande-vadrouille.mp4"
       R2_PATH: "nostaligafun-files/games/games-accualy/APPS/MovieApp_Data/files/movies"
       TIMELINES_PATH: "nostaligafun-files/games/games-accualy/APPS/MovieApp_Data/files/timelines/movies"
     steps:
@@ -15,7 +16,7 @@ jobs:
         run: |
           curl https://rclone.org/install.sh | sudo bash
           sudo apt-get update
-          sudo apt-get install -y aria2 ffmpeg webp
+          sudo apt-get install -y aria2 ffmpeg webp fonts-dejavu-core uchardet
       - name: Write rclone config
         env:
           R2_ACCESS_KEY: ${{ secrets.R2_ACCESS_KEY }}
@@ -34,6 +35,12 @@ jobs:
           EOF
           chmod 600 ~/.config/rclone/rclone.conf
       - uses: actions/checkout@v4
+      - name: Check subtitles exist
+        run: |
+          if [ ! -f "$GITHUB_WORKSPACE/$SUBTITLES" ]; then
+            echo "Subtitle file not found: $SUBTITLES"
+            exit 1
+          fi
       - name: Download from torrent
         run: |
           mkdir -p downloads
@@ -96,6 +103,29 @@ jobs:
           } > "$BASE.vtt"
           rm -f sprite.png
           ls -lh "$BASE.webp" "$BASE.vtt"
+      - name: Burn subtitles into video
+        run: |
+          set -e
+          cd downloads
+          SRC_SRT="$GITHUB_WORKSPACE/$SUBTITLES"
+          ENC=$(uchardet "$SRC_SRT" || echo "UTF-8")
+          echo "Detected subtitle encoding: $ENC"
+          case "$ENC" in
+            UTF-8|ASCII|utf-8|ascii) cp "$SRC_SRT" subs.srt ;;
+            *) iconv -f "$ENC" -t UTF-8 "$SRC_SRT" -o subs.srt || iconv -f WINDOWS-1252 -t UTF-8 "$SRC_SRT" -o subs.srt ;;
+          esac
+          sed -i 's/\r$//' subs.srt
+          ffmpeg -hide_banner -y -i "$OUTPUT_FILENAME" \
+            -map 0:v:0 -map 0:a? \
+            -vf "subtitles=subs.srt:charenc=UTF-8:force_style='FontName=DejaVu Sans,FontSize=22,PrimaryColour=&H00FFFFFF,OutlineColour=&H00000000,BorderStyle=1,Outline=2,Shadow=0,MarginV=24'" \
+            -c:v libx264 -preset veryfast -crf 20 -tune film -pix_fmt yuv420p \
+            -c:a copy -sn \
+            -movflags +faststart \
+            -stats_period 30 \
+            burned.mp4
+          mv -f burned.mp4 "$OUTPUT_FILENAME"
+          rm -f subs.srt
+          ls -lh "$OUTPUT_FILENAME"
       - name: Upload video and timeline to R2
         run: |
           set -e
