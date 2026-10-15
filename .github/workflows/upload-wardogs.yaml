@@ -1,4 +1,4 @@
-name: A Upload Spiderman brand new day
+name: A NWOMD
 on:
   workflow_dispatch:
 jobs:
