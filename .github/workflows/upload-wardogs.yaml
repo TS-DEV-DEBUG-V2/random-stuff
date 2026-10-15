@@ -6,8 +6,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 350
     env:
-      MAGNET: "/assets/brandnewday.torrent"
-      OUTPUT_FILENAME: "spider-man-brand-new-day.mp4"
+      MAGNET: "/assets/NWMD.torrent"
+      OUTPUT_FILENAME: "not-without-my-daughter.mp4"
       R2_PATH: "nostaligafun-files/games/games-accualy/APPS/MovieApp_Data/files/movies"
       TIMELINES_PATH: "nostaligafun-files/games/games-accualy/APPS/MovieApp_Data/files/timelines/movies"
     steps:
