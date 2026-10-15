@@ -1,4 +1,4 @@
-name: A Upload War Dogs
+name: A Upload Spiderman brand new day
 on:
   workflow_dispatch:
 jobs:
@@ -6,8 +6,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 350
     env:
-      MAGNET: "/assets/WarDogs.torrent"
-      OUTPUT_FILENAME: "war-dogs.mp4"
+      MAGNET: "/assets/brandnewday.torrent"
+      OUTPUT_FILENAME: "spider-man-brand-new-day.mp4"
       R2_PATH: "nostaligafun-files/games/games-accualy/APPS/MovieApp_Data/files/movies"
       TIMELINES_PATH: "nostaligafun-files/games/games-accualy/APPS/MovieApp_Data/files/timelines/movies"
     steps:
