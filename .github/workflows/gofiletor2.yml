@@ -25,82 +25,26 @@ jobs:
       RCLONE_CONFIG_R2_ACL: private
       RCLONE_CONFIG_R2_NO_CHECK_BUCKET: "true"
     steps:
+      - uses: actions/checkout@v4
+
       - name: Free disk space
         run: |
-          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL /usr/local/share/boost
-          sudo docker image prune --all --force || true
-          df -h
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL &
+          wait
+          df -h /
 
       - name: Install tools
         run: |
           sudo apt-get update
-          sudo apt-get install -y aria2 p7zip-full unzip
+          sudo apt-get install -y aria2 p7zip-full
           curl -fsSL https://rclone.org/install.sh | sudo bash
 
-      - name: Resolve Gofile links
-        env:
-          GOFILE_URL: ${{ inputs.gofile_url }}
+      - name: Download from Gofile
         run: |
+          ID="$(basename "${{ inputs.gofile_url }}")"
           mkdir -p work
-          python3 - <<'EOF'
-          import os, re, json, urllib.request
-
-          url = os.environ["GOFILE_URL"].rstrip("/")
-          cid = url.split("/")[-1]
-          ua = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36"
-
-          def call(u, method="GET", headers=None, data=None):
-              h = {"User-Agent": ua}
-              h.update(headers or {})
-              r = urllib.request.Request(u, method=method, headers=h, data=data)
-              with urllib.request.urlopen(r) as resp:
-                  return resp.read().decode()
-
-          token = json.loads(call("https://api.gofile.io/accounts", "POST", data=b"{}"))["data"]["token"]
-
-          wt = "4fd6sg89d7s6"
-          for js in ("https://gofile.io/dist/js/global.js", "https://gofile.io/dist/js/config.js", "https://gofile.io/dist/js/wt.obf.js"):
-              try:
-                  m = re.search(r'wt\s*[:=]\s*["\']([A-Za-z0-9]+)["\']', call(js))
-                  if m:
-                      wt = m.group(1)
-                      break
-              except Exception:
-                  pass
-
-          auth = {"Authorization": f"Bearer {token}", "X-Website-Token": wt}
-          entries = []
-
-          def walk(content_id, prefix=""):
-              data = json.loads(call(f"https://api.gofile.io/contents/{content_id}?wt={wt}", headers=auth))
-              if data.get("status") != "ok":
-                  raise SystemExit(f"Gofile error: {data}")
-              node = data["data"]
-              if node.get("type") == "file":
-                  entries.append((node["link"], prefix + node["name"]))
-                  return
-              for child in node.get("children", {}).values():
-                  if child["type"] == "folder":
-                      walk(child["id"], prefix + child["name"] + "/")
-                  else:
-                      entries.append((child["link"], prefix + child["name"]))
-
-          walk(cid)
-          if not entries:
-              raise SystemExit("No files found")
-
-          with open("aria2.txt", "w") as f:
-              for link, name in entries:
-                  f.write(f"{link}\n  out={name}\n  header=Cookie: accountToken={token}\n  header=User-Agent: {ua}\n")
-          for _, name in entries:
-              print(name)
-          EOF
-
-      - name: Download
-        working-directory: work
-        run: |
-          aria2c -i ../aria2.txt -x 16 -s 16 -j 4 -k 1M --file-allocation=none --max-tries=10 --retry-wait=5 --summary-interval=30
-          ls -la
+          python3 gofile_dl.py "$ID" work
+          ls -la work
 
       - name: Extract to .
         working-directory: work
@@ -115,7 +59,6 @@ jobs:
             7z x -y "$a" -o.
             rm -f "$a"
           done
-          rm -f *.z0* *.7z.0* *.part*.rar
           du -sh .
           find . -maxdepth 2 | head -50
 
