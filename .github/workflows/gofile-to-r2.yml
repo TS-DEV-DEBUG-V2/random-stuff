@@ -1,0 +1,80 @@
+name: A Gofile to R2 - SuperMarioOdyssey_Data
+
+on:
+  workflow_dispatch:
+    inputs:
+      gofile_url:
+        description: Gofile link
+        required: true
+        default: https://gofile.io/d/AoG4RYys
+      r2_dest:
+        description: R2 destination
+        required: true
+        default: r2:nostaligafun-files/games/games-accualy/SWITCH/SuperMarioOdyssey_Data/
+
+jobs:
+  transfer:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    env:
+      RCLONE_CONFIG_R2_TYPE: s3
+      RCLONE_CONFIG_R2_PROVIDER: Cloudflare
+      RCLONE_CONFIG_R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY }}
+      RCLONE_CONFIG_R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_KEY }}
+      RCLONE_CONFIG_R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
+      RCLONE_CONFIG_R2_ACL: private
+      RCLONE_CONFIG_R2_NO_CHECK_BUCKET: "true"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL &
+          wait
+          df -h /
+
+      - name: Install tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y aria2 p7zip-full
+          curl -fsSL https://rclone.org/install.sh | sudo bash
+
+      - name: Download from Gofile
+        run: |
+          mkdir -p work
+          python3 gofile_dl.py "${{ inputs.gofile_url }}" work
+          ls -la work
+
+      - name: Extract to .
+        working-directory: work
+        run: |
+          shopt -s nullglob nocaseglob
+          archives=( *.zip *.7z *.rar )
+          if [ ${#archives[@]} -eq 0 ]; then
+            echo "No archives found"
+            exit 1
+          fi
+          for a in "${archives[@]}"; do
+            7z x -y "$a" -o.
+            rm -f "$a"
+          done
+          du -sh .
+          find . -maxdepth 2 | head -50
+
+      - name: Upload to R2
+        working-directory: work
+        run: |
+          rclone copy . "${{ inputs.r2_dest }}" \
+            --transfers 32 \
+            --checkers 32 \
+            --s3-upload-concurrency 8 \
+            --s3-chunk-size 64M \
+            --fast-list \
+            --stats 30s \
+            --stats-one-line \
+            -v
+          rclone size "${{ inputs.r2_dest }}"
